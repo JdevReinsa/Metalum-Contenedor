@@ -3,6 +3,7 @@ import pandas as pd
 import time
 import urllib.parse
 import os
+import io  # Requerido para generar el Excel en memoria
 
 # Nombre del archivo donde se guardará la información de forma permanente
 ARCHIVO_DATOS = "registro_fardos_metalum.csv"
@@ -96,7 +97,8 @@ st.divider()
 
 # --- FUNCIÓN: CARGAR DATOS AL INICIAR/RECARGAR ---
 def cargar_datos():
-    columnas_correctas = ["Ítem", "Peso (Kg)", "Folio", "Producto"]
+    # CAMBIO: Se reordenaron las columnas para que Folio vaya antes de Peso
+    columnas_correctas = ["Ítem", "Folio", "Peso (Kg)", "Producto"]
     if os.path.exists(ARCHIVO_DATOS):
         try:
             df = pd.read_csv(ARCHIVO_DATOS)
@@ -112,6 +114,17 @@ def cargar_datos():
 # --- FUNCIÓN: GUARDAR DATOS EN EL ARCHIVO LOCAL ---
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
+
+# --- FUNCIÓN: GENERAR EXCEL EN MEMORIA ---
+def generar_excel(df, patente_nom):
+    output = io.BytesIO()
+    # Copia del dataframe reseteando el índice para que "Ítem" sea una columna normal en el Excel
+    df_excel = df.copy()
+    
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df_excel.to_excel(writer, index=False, sheet_name='Reporte Carga')
+        # Puedes personalizar el diseño aquí si lo deseas en el futuro
+    return output.getvalue()
 
 # 2. Inicializar variables en memoria (con respaldo de archivo)
 if "tabla_carga" not in st.session_state:
@@ -132,10 +145,10 @@ if "form_reset_counter" not in st.session_state:
 
 # 3. FORMULARIO DE CARGA (Sin clear_on_submit automático para mantener el Producto seleccionado)
 with st.form(key="formulario_fardo"):
-    # El producto recordará la selección del usuario en cada recarga
+    # CAMBIO: Se actualizó "Taint" por "Taint Tabor"
     producto = st.selectbox(
         "Selecciona el Producto:",
-        ["UBC", "Perfil", "Tense", "Taint", "Radiador", "Acero", "Offset"],
+        ["UBC", "Perfil", "Tense", "Taint Tabor", "Radiador", "Acero", "Offset"],
         key="producto_seleccionado"
     )
     
@@ -189,8 +202,8 @@ if boton_guardar:
             
             nueva_fila = pd.DataFrame([{
                 "Ítem": int(siguiente_item),
+                "Folio": folio_val,        # CAMBIO: Sigue el nuevo orden estructural
                 "Peso (Kg)": peso_val,
-                "Folio": folio_val,
                 "Producto": producto
             }])
             
@@ -234,27 +247,28 @@ if not st.session_state.tabla_carga.empty:
     with col_der:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
     
-    df_pantalla = st.session_state.tabla_carga[["Ítem", "Peso (Kg)", "Folio", "Producto"]].set_index("Ítem")
+    # CAMBIO: Se reordenó el set_index y el column_order para la visualización en pantalla
+    df_pantalla = st.session_state.tabla_carga[["Ítem", "Folio", "Peso (Kg)", "Producto"]].set_index("Ítem")
     
     st.dataframe(
         df_pantalla, 
         use_container_width=True,
-        column_order=["Peso (Kg)", "Folio"]
+        column_order=["Folio", "Peso (Kg)", "Producto"]
     )
     
     st.divider()
 
-    # Botón WhatsApp
+    # Botón WhatsApp Texto
     st.write("### 📤 Reporte de Salida")
     patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
     mensaje_wsp += f"----------------------------------------\n"
-    mensaje_wsp += f"`Ítem | Peso(Kg) | Folio | Producto`\n"
+    mensaje_wsp += f"`Ítem | Folio | Peso(Kg) | Producto`\n"  # CAMBIO: Ajuste de orden en el texto
     
     for idx, fila in st.session_state.tabla_carga.iterrows():
-        mensaje_wsp += f"{int(fila['Ítem'])} | {int(fila['Peso (Kg)'])} Kg | F:{int(fila['Folio'])} | {fila['Producto']}\n"
+        mensaje_wsp += f"{int(fila['Ítem'])} | F:{int(fila['Folio'])} | {int(fila['Peso (Kg)'])} Kg | {fila['Producto']}\n"
         
     mensaje_wsp += f"----------------------------------------\n"
     mensaje_wsp += f"📦 *Total Bultos:* {total_bultos}\n"
@@ -269,10 +283,21 @@ if not st.session_state.tabla_carga.empty:
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.69-4.936c-.202-.101-1.202-.594-1.392-.661-.19-.068-.33-.101-.47.101-.14.202-.54.661-.661.8-.12.138-.24.154-.442.053-1.648-.826-2.617-1.963-3.064-2.731-.12-.207-.013-.319.09-.421.093-.092.202-.24.302-.36.101-.12.135-.2.203-.34.067-.137.034-.257-.017-.359-.051-.101-.47-1.136-.645-1.545-.171-.413-.344-.358-.47-.364-.121-.006-.26-.006-.4-.006-.14 0-.368.053-.56.26-.191.207-.73.714-.73 1.74s.747 2.009.85 2.147c.101.137 1.47 2.246 3.562 3.149.497.215.885.342 1.184.438.5.158.955.135 1.314.08.4-.061 1.202-.493 1.37-.967.169-.473.169-.88.119-.967-.051-.088-.18-.137-.383-.238"/>
                 </svg>
-                COMPARTIR
+                COMPARTIR TEXTO POR WSP
             </a>
         </div>
     """, unsafe_allow_html=True)
+    
+    st.write("") # Espaciador
+    
+    # CAMBIO: Nueva función para descargar la tabla directamente en formato Excel corporativo
+    data_excel = generar_excel(st.session_state.tabla_carga, patente_texto)
+    st.download_button(
+        label="📊 DESCARGAR EXCEL (Para enviar por Wsp)",
+        data=data_excel,
+        file_name=f"Reporte_Metalum_{patente_texto}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
     
     st.divider()
     
@@ -302,7 +327,7 @@ if not st.session_state.tabla_carga.empty:
     st.write("") 
     
     if st.button("⚠️ Reiniciar Todo (Camión Nuevo)"):
-        st.session_state.tabla_carga = pd.DataFrame(columns=["Ítem", "Peso (Kg)", "Folio", "Producto"])
+        st.session_state.tabla_carga = pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
         
         if os.path.exists(ARCHIVO_DATOS):
             os.remove(ARCHIVO_DATOS)
