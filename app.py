@@ -16,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS inyectado optimizado
+# Estilo CSS inyectado optimizado para limpiar la interfaz en celulares
 st.markdown("""
     <style>
     [data-testid="stHeader"] {
@@ -49,7 +49,7 @@ st.markdown("""
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: 10px;
         background-color: #25D366 !important;
         color: white !important;
         font-weight: bold !important;
@@ -60,12 +60,16 @@ st.markdown("""
         font-size: 18px;
     }
     
-    /* Estilo botón Excel */
+    /* Estilo botón Excel con Logo oficial incorporado */
     .boton-excel-wsp>div>button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 10px !important;
         background-color: #107c41 !important;
         color: white !important;
         font-weight: bold !important;
-        font-size: 16px;
+        font-size: 18px !important;
     }
     
     input {
@@ -140,8 +144,10 @@ with st.form(key="formulario_fardo"):
     )
     
     ctr = st.session_state.form_reset_counter
-    peso = st.number_input("Peso (Kg):", step=1, value=None, placeholder="Escribe el peso y presiona Enter...", key=f"peso_{ctr}")
-    folio = st.number_input("Número de Folio:", step=1, value=None, placeholder="Escribe el folio y presiona Enter...", key=f"folio_{ctr}")
+    
+    # CAMBIO: Se usa text_input para eliminar los molestos botones +/- y los textos de "Press Enter"
+    peso_raw = st.text_input("Peso (Kg):", placeholder="Escribe el peso...", key=f"peso_{ctr}")
+    folio_raw = st.text_input("Número de Folio:", placeholder="Escribe el folio...", key=f"folio_{ctr}")
     
     f_proc = st.session_state.ultimo_folio_processed
     f_rep = st.session_state.folio_intentado
@@ -154,7 +160,7 @@ with st.form(key="formulario_fardo"):
         texto_boton = f"❌ ¡FOLIO #{f_rep} REPETIDO! ✖️"
     elif st.session_state.estado_ultimo_fardo == "error_vacio":
         clase_boton = "boton-error"
-        texto_boton = "❌ ERROR: ¡DATOS VACÍOS! ✖️"
+        texto_boton = "❌ ERROR: ¡DATOS VACÍOS O INVÁLIDOS! ✖️"
     else:
         clase_boton = "boton-normal"
         texto_boton = "➕ AGREGAR FARDO"
@@ -165,8 +171,14 @@ with st.form(key="formulario_fardo"):
 
 # 4. LÓGICA DE PROCESAMIENTO
 if boton_guardar:
-    peso_val = int(peso) if peso is not None else 0
-    folio_val = int(folio) if folio is not None else 0
+    # Intentar convertir los textos limpios en números enteros de forma segura
+    try:
+        peso_val = int(peso_raw.strip()) if peso_raw else 0
+        folio_val = int(folio_raw.strip()) if folio_raw else 0
+    except ValueError:
+        peso_val = 0
+        folio_val = 0
+        
     st.session_state.folio_intentado = folio_val
     
     if peso_val > 0 and folio_val > 0:
@@ -232,6 +244,7 @@ if not st.session_state.tabla_carga.empty:
     st.write("### 📤 Reporte de Salida")
     patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
+    # Mensaje de WhatsApp Texto
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
     mensaje_wsp += f"----------------------------------------\n"
@@ -245,6 +258,7 @@ if not st.session_state.tabla_carga.empty:
     texto_codificado = urllib.parse.quote(mensaje_wsp)
     enlace_whatsapp = f"https://api.whatsapp.com/send?text={texto_codificado}"
     
+    # Botón WhatsApp - Texto "COMPARTIR"
     st.markdown(f"""
         <div class="boton-wsp">
             <a href="{enlace_whatsapp}" target="_blank">
@@ -258,10 +272,11 @@ if not st.session_state.tabla_carga.empty:
     
     st.write("") 
     
+    # CAMBIO: Botón de Excel idéntico al de arriba con logo oficial del libro de Excel y texto "COMPARTIR"
     data_excel = generar_excel(st.session_state.tabla_carga, patente_texto, total_bultos, total_kg)
     st.markdown('<div class="boton-excel-wsp">', unsafe_allow_html=True)
     st.download_button(
-        label="🟢 COMPARTIR EXCEL",
+        label="📊 COMPARTIR",  # Texto unificado solicitado
         data=data_excel,
         file_name=f"Reporte_Metalum_{patente_texto}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -270,39 +285,37 @@ if not st.session_state.tabla_carga.empty:
     
     st.divider()
     
-    # CAMBIO: Sección de corregir errores modificada para ingreso numérico manual
+    # Sección para corregir errores
     st.write("### 🛠️ Corregir Errores")
-    item_a_borrar = st.number_input(
+    item_a_borrar_raw = st.text_input(
         "Digita el N° de Ítem que deseas eliminar:", 
-        min_value=0, 
-        step=1, 
-        value=None, 
         placeholder="Escribe el número de ítem aquí..."
     )
     
+    try:
+        item_a_borrar = int(item_a_borrar_raw.strip()) if item_a_borrar_raw else 0
+    except ValueError:
+        item_a_borrar = 0
+        
     st.markdown('<div class="boton-borrar">', unsafe_allow_html=True)
-    if item_a_borrar is None or item_a_borrar == 0:
+    if item_a_borrar == 0:
         texto_boton = "🗑️ INGRESA UN ÍTEM"
     else:
-        texto_boton = f"🗑️ ELIMINAR ÍTEM N° {int(item_a_borrar)}"
+        texto_boton = f"🗑️ ELIMINAR ÍTEM N° {item_a_borrar}"
         
     if st.button(texto_boton):
-        if item_a_borrar is None or item_a_borrar == 0:
+        if item_a_borrar == 0:
             st.error("Debes ingresar un número de Ítem válido.")
         else:
-            item_a_borrar_val = int(item_a_borrar)
             items_existentes = st.session_state.tabla_carga["Ítem"].tolist()
-            
-            if item_a_borrar_val not in items_existentes:
-                st.error(f"El Ítem N° {item_a_borrar_val} no existe en la carga actual.")
+            if item_a_borrar not in items_existentes:
+                st.error(f"El Ítem N° {item_a_borrar} no existe en la carga actual.")
             else:
-                # Filtrar y eliminar el registro
-                st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] != item_a_borrar_val]
-                # Re-indexar los ítems correlativos para que vuelvan a quedar del 1 en adelante ordenados
+                st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] != item_a_borrar]
                 st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
                 
                 guardar_datos(st.session_state.tabla_carga)
-                st.success(f"¡Ítem N° {item_a_borrar_val} eliminado con éxito!")
+                st.success(f"¡Ítem N° {item_a_borrar} eliminado con éxito!")
                 time.sleep(1)
                 st.session_state.estado_ultimo_fardo = "normal"
                 st.rerun()
