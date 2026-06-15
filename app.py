@@ -18,6 +18,17 @@ st.set_page_config(
 # Estilo CSS inyectado para optimizar el tamaño en celulares y quitar elementos molestos
 st.markdown("""
     <style>
+    /* 1. Esconde por completo la barra superior (Menú, tu foto de perfil y estado de conexión) */
+    [data-testid="stHeader"] {
+        visibility: hidden;
+        height: 0% !important;
+    }
+    
+    /* 2. Esconde el logo de Streamlit ("Made with Streamlit") en el pie de página */
+    [data-testid="viewerBadge"] {
+        visibility: hidden;
+    }
+    
     /* Esconde el botón del menú de hamburguesa de la esquina superior izquierda */
     [data-testid="stSidebarCollapse"] {
         display: none !important;
