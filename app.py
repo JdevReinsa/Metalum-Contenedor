@@ -16,9 +16,30 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Estilo CSS inyectado optimizado para limpiar la interfaz en celulares
+# Estilo CSS inyectado optimizado para forzar MODO OSCURO y limpiar la interfaz
 st.markdown("""
     <style>
+    /* --- FORZAR MODO OSCURO GLOBAL --- */
+    html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
+        background-color: #0e1117 !important;
+        color: #ffffff !important;
+    }
+    
+    /* Textos, títulos y etiquetas en blanco */
+    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricLabel"] {
+        color: #ffffff !important;
+    }
+    
+    /* Modificar cajas de entrada de texto e inputs para que resalten en el modo oscuro */
+    input, select, div[data-baseweb="select"], .stTextArea textarea {
+        background-color: #1f2937 !important;
+        color: #ffffff !important;
+        border: 1px solid #4b5563 !important;
+        border-radius: 6px !important;
+        height: 45px !important;
+    }
+    
+    /* Quitar elementos molestos de Streamlit */
     [data-testid="stHeader"] {
         visibility: hidden;
         height: 0% !important;
@@ -30,7 +51,7 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Estilo base para botones */
+    /* --- ESTILO DE BOTONES --- */
     .stButton>button, .stDownloadButton>button {
         width: 100%;
         height: 55px;
@@ -39,10 +60,10 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; }
-    .boton-exito>div>button { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }
-    .boton-error>div>button { background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }
-    .boton-borrar>div>button { background-color: #555555 !important; color: white !important; height: 55px !important; }
+    .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; border: none !important; }
+    .boton-exito>div>button { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; border: none !important; }
+    .boton-error>div>button { background-color: #d32f2f !important; color: white !important; font-weight: bold !important; border: none !important; }
+    .boton-borrar>div>button { background-color: #374151 !important; color: white !important; height: 55px !important; border: 1px solid #4b5563 !important; }
     
     /* Estilo botón WhatsApp Texto */
     .boton-wsp>div>a {
@@ -60,7 +81,7 @@ st.markdown("""
         font-size: 18px;
     }
     
-    /* Estilo botón Excel con descarga y link */
+    /* Estilo botón Excel Estable */
     .boton-excel-wsp>div>button {
         display: flex !important;
         align-items: center !important;
@@ -70,11 +91,12 @@ st.markdown("""
         color: white !important;
         font-weight: bold !important;
         font-size: 18px !important;
+        border: none !important;
     }
     
-    input {
-        height: 45px !important;
-        font-size: 16px !important;
+    /* Estilizar el interruptor Toggle para que se vea claro */
+    div[data-testid="stToggle"] p {
+        color: #ffffff !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -101,7 +123,7 @@ def cargar_datos():
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
 
-# --- GENERAR EXCEL CON AUTO-AJUSTE DE COLUMNAS ---
+# --- GENERAR EXCEL BONITO, FORMATEADO Y APTO PARA IMPRESIÓN ---
 def generar_excel(df, patente_nom, total_b, total_k):
     output = io.BytesIO()
     df_excel = df.copy()
@@ -111,25 +133,54 @@ def generar_excel(df, patente_nom, total_b, total_k):
         
         workbook  = writer.book
         worksheet = writer.sheets['Reporte Carga']
-        bold = workbook.add_format({'bold': True})
         
-        # 🟢 CAMBIO: Lógica de auto-ajuste de ancho de columnas según el tamaño de los números/datos
+        # --- DEFINICIÓN DE FORMATOS ---
+        # Cabecera: Verde corporativo Excel con letras blancas y negrita
+        header_format = workbook.add_format({
+            'bold': True,
+            'text_wrap': True,
+            'valign': 'vcenter',
+            'align': 'center',
+            'fg_color': '#107C41',
+            'font_color': 'white',
+            'border': 1
+        })
+        
+        # Formatos de datos con bordes limpios para impresión
+        center_format = workbook.add_format({'align': 'center', 'border': 1})
+        right_format = workbook.add_format({'align': 'right', 'border': 1, 'num_format': '#,##0'})
+        left_format = workbook.add_format({'align': 'left', 'border': 1})
+        
+        # Formatos de totales destacados
+        bold_label = workbook.add_format({'bold': True, 'align': 'right'})
+        bold_value = workbook.add_format({'bold': True, 'align': 'left'})
+        
+        # Re-escribir cabeceras con diseño bonito
+        for col_num, header in enumerate(df_excel.columns):
+            worksheet.write(0, col_num, header, header_format)
+            
+        # Aplicar alineaciones y bordes fila por fila
+        for row_idx in range(len(df_excel)):
+            worksheet.write(row_idx + 1, 0, df_excel.iloc[row_idx, 0], center_format) # Ítem
+            worksheet.write(row_idx + 1, 1, df_excel.iloc[row_idx, 1], center_format) # Folio
+            worksheet.write(row_idx + 1, 2, df_excel.iloc[row_idx, 2], right_format)  # Peso
+            worksheet.write(row_idx + 1, 3, df_excel.iloc[row_idx, 3], left_format)   # Producto
+
+        # Auto-ajuste inteligente de ancho de columnas (Evita el error ###)
         for col_num, col_name in enumerate(df_excel.columns):
-            # Mide la longitud del encabezado
             max_len = len(str(col_name))
-            # Mide la longitud del dato más largo en esa columna
             for val in df_excel[col_name]:
                 max_len = max(max_len, len(str(val)))
-            # Aplica el ancho calculado con un margen de seguridad de 4 espacios
-            worksheet.set_column(col_num, col_num, max_len + 4)
+            worksheet.set_column(col_num, col_num, max_len + 5)
             
-        row_idx = len(df_excel) + 2
-        worksheet.write(row_idx, 1, "Patente Camión:", bold)
-        worksheet.write(row_idx, 2, patente_nom)
-        worksheet.write(row_idx+1, 1, "Total Bultos:", bold)
-        worksheet.write(row_idx+1, 2, total_b)
-        worksheet.write(row_idx+2, 1, "Peso Total (Kg):", bold)
-        worksheet.write(row_idx+2, 2, total_k)
+        # Agregar cuadro de totales abajo bien presentado
+        start_row = len(df_excel) + 2
+        worksheet.write(start_row, 1, "Patente Camión:", bold_label)
+        worksheet.write(start_row, 2, patente_nom, bold_value)
+        worksheet.write(start_row + 1, 1, "Total Bultos:", bold_label)
+        worksheet.write(start_row + 1, 2, f"{total_b} fardos", bold_value)
+        worksheet.write(start_row + 2, 1, "Peso Total (Kg):", bold_label)
+        worksheet.write(start_row + 2, 2, f"{total_k:,} Kg", bold_value)
         
     return output.getvalue()
 
@@ -144,8 +195,6 @@ if "folio_intentado" not in st.session_state:
     st.session_state.folio_intentado = 0
 if "form_reset_counter" not in st.session_state:
     st.session_state.form_reset_counter = 0
-if "redirigir_wsp_excel" not in st.session_state:
-    st.session_state.redirigir_wsp_excel = False
 
 # 3. FORMULARIO DE CARGA
 with st.form(key="formulario_fardo"):
@@ -253,7 +302,7 @@ if not st.session_state.tabla_carga.empty:
     st.write("### 📤 Reporte de Salida")
     patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
-    # --- CONFIGURACIÓN MENSAJE TEXTO WHATSAPP ---
+    # Mensaje de WhatsApp Texto
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
     mensaje_wsp += f"----------------------------------------\n"
@@ -267,7 +316,7 @@ if not st.session_state.tabla_carga.empty:
     texto_codificado = urllib.parse.quote(mensaje_wsp)
     enlace_whatsapp = f"https://api.whatsapp.com/send?text={texto_codificado}"
     
-    # Botón 1: WhatsApp Texto
+    # Botón 1: WhatsApp Texto ("COMPARTIR")
     st.markdown(f"""
         <div class="boton-wsp">
             <a href="{enlace_whatsapp}" target="_blank">
@@ -281,18 +330,10 @@ if not st.session_state.tabla_carga.empty:
     
     st.write("") 
     
-    # --- CONFIGURACIÓN ENLACE ADICIONAL EXCEL ---
-    mensaje_excel = f"📊 *REPORTE EXCEL - METALUM*\n"
-    mensaje_excel += f"Aquí tienes el archivo Excel listo para revisión o impresión.\n"
-    mensaje_excel += f"🚚 *Camión Patente:* {patente_texto}"
-    texto_excel_codificado = urllib.parse.quote(mensaje_excel)
-    enlace_excel_whatsapp = f"https://api.whatsapp.com/send?text={texto_excel_codificado}"
-    
-    # Botón 2: Excel Inteligente (Descarga + Activa aviso de redirección)
+    # Botón 2: Excel con Descarga Directa Ultra Estable y Logotipo SVG de Microsoft Libro de Excel
     data_excel = generar_excel(st.session_state.tabla_carga, patente_texto, total_bultos, total_kg)
     st.markdown('<div class="boton-excel-wsp">', unsafe_allow_html=True)
-    
-    click_excel = st.download_button(
+    st.download_button(
         label="📊 COMPARTIR",  
         data=data_excel,
         file_name=f"Reporte_Metalum_{patente_texto}.xlsx",
@@ -300,16 +341,6 @@ if not st.session_state.tabla_carga.empty:
     )
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Si se pulsa el botón de Excel, dejamos guardado el estado para abrir WhatsApp en el siguiente ciclo
-    if click_excel:
-        st.session_state.redirigir_wsp_excel = True
-        st.rerun()
-        
-    if st.session_state.redirigir_wsp_excel:
-        st.session_state.redirigir_wsp_excel = False
-        # Inyecta un script rápido para abrir de inmediato la ventana de chat mientras el archivo ya está en las descargas del teléfono
-        st.markdown(f'<meta http-equiv="refresh" content="0;URL={enlace_excel_whatsapp}">', unsafe_allow_html=True)
-
     st.divider()
     
     # Sección para corregir errores
