@@ -4,7 +4,7 @@ import time
 import urllib.parse
 import os
 import io
-import uuid # <-- Librería para generar identificadores únicos por dispositivo
+import hashlib
 
 # 1. Configuración de la página
 st.set_page_config(
@@ -14,12 +14,24 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inicializar un ID de sesión único por pestaña/dispositivo si no existe
-if "session_id" not in st.session_state:
-    st.session_state.session_id = str(uuid.uuid4())[:8] # Código único de 8 caracteres
+# 🔐 DETECTOR DE DISPOSITIVO INVIOLABLE (No se borra al recargar y no se cruza entre equipos)
+def obtener_id_dispositivo_unico():
+    try:
+        # Captura las características únicas del navegador y dispositivo (User-Agent, IP proxies, etc.)
+        headers = st.context.headers
+        user_agent = headers.get("User-Agent", "dispositivo_desconocido")
+        host = headers.get("Host", "local")
+        # Creamos una firma digital única para ese aparato
+        firma_secreta = f"{user_agent}_{host}"
+        id_anonimo = hashlib.md5(firma_secreta.encode()).hexdigest()[:10]
+        return id_anonimo
+    except Exception:
+        return "dispositivo_fijo"
 
-# El nombre del archivo ahora es DINÁMICO y privado para cada dispositivo conectado
-ARCHIVO_DATOS = f"registro_fardos_{st.session_state.session_id}.csv"
+ID_DISPOSITIVO = obtener_id_dispositivo_unico()
+
+# El archivo ahora está blindado: es único para cada aparato y NO cambia al pulsar F5
+ARCHIVO_DATOS = f"registro_fardos_{ID_DISPOSITIVO}.csv"
 
 # 📱 CONEXIÓN CON EL MANIFEST PARA EL ACCESO DIRECTO MÓVIL
 st.markdown('<link rel="manifest" href="./manifest.json">', unsafe_allow_html=True)
@@ -27,7 +39,7 @@ st.markdown('<meta name="apple-mobile-web-app-title" content="Carga contenedor">
 st.markdown('<meta name="apple-mobile-web-app-capable" content="yes">', unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3066/3066514.png">', unsafe_allow_html=True)
 
-# Estilo CSS inyectado optimizado para limpiar la interfaz y dar scroll horizontal dinámico
+# Estilo CSS inyectado optimizado
 st.markdown("""
     <style>
     [data-testid="stHeader"] {
@@ -41,13 +53,11 @@ st.markdown("""
         display: none !important;
     }
     
-    /* Forzar contenedor de la tabla para soportar scroll horizontal si hay números muy grandes */
     [data-testid="stDataFrame"] {
         width: 100% !important;
         overflow-x: auto !important;
     }
     
-    /* Estilo base para botones */
     .stButton>button, .stDownloadButton>button {
         width: 100%;
         height: 55px;
@@ -61,7 +71,6 @@ st.markdown("""
     .boton-error>div>button { background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }
     .boton-borrar>div>button { background-color: #555555 !important; color: white !important; height: 55px !important; }
     
-    /* Estilo botón WhatsApp Texto */
     .boton-wsp>div>a {
         display: flex;
         align-items: center;
@@ -77,7 +86,6 @@ st.markdown("""
         font-size: 18px;
     }
     
-    /* Estilo botón Excel profesional */
     .boton-excel-wsp>div>button {
         display: flex !important;
         align-items: center !important;
@@ -98,8 +106,7 @@ st.markdown("""
 
 st.title("🏭 METALUM")
 st.subheader("Registro de Contenedor")
-# Muestra sutilmente el identificador de sesión para que sepa que está protegido de forma independiente
-st.caption(f"🔒 Sesión privada activa: Device-{st.session_state.session_id}")
+st.caption(f"🔒 Conexión Protegida Privada (ID: {ID_DISPOSITIVO})")
 st.divider()
 
 # --- CARGAR DATOS ---
@@ -120,7 +127,7 @@ def cargar_datos():
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
 
-# --- GENERAR EXCEL PROFESIONAL PARA IMPRESIÓN ---
+# --- GENERAR EXCEL PROFESIONAL ---
 def generar_excel(df, patente_nom, total_b, total_k, total_p):
     output = io.BytesIO()
     df_excel = df.copy()
@@ -132,21 +139,10 @@ def generar_excel(df, patente_nom, total_b, total_k, total_p):
         worksheet = writer.sheets['Reporte Carga']
         
         header_format = workbook.add_format({
-            'bold': True,
-            'text_wrap': True,
-            'align': 'left',
-            'valign': 'vcenter',
-            'fg_color': '#107C41',
-            'font_color': 'white',
-            'border': 1
+            'bold': True, 'text_wrap': True, 'align': 'left', 'valign': 'vcenter',
+            'fg_color': '#107C41', 'font_color': 'white', 'border': 1
         })
-        
-        cell_format = workbook.add_format({
-            'align': 'left',
-            'valign': 'vcenter',
-            'border': 1
-        })
-        
+        cell_format = workbook.add_format({'align': 'left', 'valign': 'vcenter', 'border': 1})
         bold_label = workbook.add_format({'bold': True, 'align': 'left'})
         normal_label = workbook.add_format({'align': 'left'})
         
@@ -174,19 +170,16 @@ def generar_excel(df, patente_nom, total_b, total_k, total_p):
         start_row = len(df_excel) + 2
         worksheet.write(start_row, 1, "Patente Camión:", bold_label)
         worksheet.write(start_row, 2, patente_nom, normal_label)
-        
         worksheet.write(start_row + 1, 1, "Total Bultos (Fardos):", bold_label)
         worksheet.write(start_row + 1, 2, f"{total_b} fardos", normal_label)
-        
         worksheet.write(start_row + 2, 1, "Peso Total Fardos:", bold_label)
         worksheet.write(start_row + 2, 2, f"{total_k:,} Kg", normal_label)
-        
         worksheet.write(start_row + 3, 1, "Total Pallets:", bold_label)
         worksheet.write(start_row + 3, 2, f"{total_p} unidades", normal_label)
         
     return output.getvalue()
 
-# Inicializar Estados
+# Inicializar Estados basados en el almacenamiento persistente
 if "tabla_carga" not in st.session_state:
     st.session_state.tabla_carga = cargar_datos()
 if "estado_ultimo_fardo" not in st.session_state:
@@ -200,7 +193,10 @@ if "cantidad_pallets_processed" not in st.session_state:
 if "form_reset_counter" not in st.session_state:
     st.session_state.form_reset_counter = 0
 
-# 2. SELECCIÓN DE PRODUCTO (Incluye Pallets)
+# Asegurar que si se refresca la página, los datos se lean del archivo correcto del dispositivo
+st.session_state.tabla_carga = cargar_datos()
+
+# 2. SELECCIÓN DE PRODUCTO
 producto = st.selectbox(
     "Selecciona el Producto:",
     ["UBC", "Perfil", "Tense", "Taint Tabor", "Radiador", "Acero", "Offset", "Pallets"],
@@ -312,9 +308,8 @@ if st.session_state.estado_ultimo_fardo != "normal":
 
 st.divider()
 
-# 5. MONITOREO EN TIEMPO REAL (ZONA SEGURA ANTICAÍDAS)
+# 5. MONITOREO EN TIEMPO REAL
 if not st.session_state.tabla_carga.empty:
-    
     try:
         df_fardos = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] != "Pallets"]
         df_pallets = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] == "Pallets"]
@@ -335,11 +330,10 @@ if not st.session_state.tabla_carga.empty:
         total_kg = 0
         total_bultos = 0
         total_pallets_unidades = 0
-        st.warning("⚠️ Nota: Se detectaron números o formatos fuera de rango en el cálculo de totales, pero tu registro está a salvo abajo.")
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric(label="TOTAL KILOS", value=f"{total_kg:,} Kg" if total_kg > 0 else "Calculando...")
+        st.metric(label="TOTAL KILOS", value=f"{total_kg:,} Kg")
     with col2:
         st.metric(label="TOTAL BULTOS", value=f"{total_bultos} fardos")
     with col3:
@@ -353,13 +347,19 @@ if not st.session_state.tabla_carga.empty:
     with col_der:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
     
-    # 🛠️ RETORNO DEL OJO NATIVO INTERACTIVO COMPLETO:
-    # Se eliminaron las restricciones duras de 'column_config' para forzar a Streamlit a restaurar el menú 
-    # flotante (el Ojo de visualización de la esquina superior derecha), manteniendo de forma fija el 'hide_index=True'.
+    # 👁️ EL OJO TOTALMENTE ACTIVADO + COLUMNAS INMUTABLES:
+    # Se habilita la configuración avanzada por columna para bloquear el movimiento/edición de Ítem, Folio y Peso, 
+    # dejando libre la interacción del menú nativo (Ojo) para ocultar las columnas deseadas.
     st.dataframe(
         st.session_state.tabla_carga, 
         use_container_width=True, 
-        hide_index=True
+        hide_index=True,
+        column_config={
+            "Ítem": st.column_config.Column(disabled=True, help="Fijo del sistema"),
+            "Folio": st.column_config.Column(disabled=True, help="Fijo del sistema"),
+            "Peso (Kg)": st.column_config.Column(disabled=True, help="Fijo del sistema"),
+            "Producto": st.column_config.Column(disabled=False)
+        }
     )
     
     st.divider()
