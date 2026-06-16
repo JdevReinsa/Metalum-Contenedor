@@ -192,6 +192,9 @@ if "cantidad_pallets_processed" not in st.session_state:
     st.session_state.cantidad_pallets_processed = 0
 if "form_reset_counter" not in st.session_state:
     st.session_state.form_reset_counter = 0
+# Estado para guardar el mensaje del último elemento borrado sin perderlo en el rerun
+if "mensaje_borrado" not in st.session_state:
+    st.session_state.mensaje_borrado = ""
 
 # Asegurar que si se refresca la página, los datos se lean del archivo correcto del dispositivo
 st.session_state.tabla_carga = cargar_datos()
@@ -347,9 +350,6 @@ if not st.session_state.tabla_carga.empty:
     with col_der:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
     
-    # 👁️ EL OJO TOTALMENTE ACTIVADO + COLUMNAS INMUTABLES:
-    # Se habilita la configuración avanzada por columna para bloquear el movimiento/edición de Ítem, Folio y Peso, 
-    # dejando libre la interacción del menú nativo (Ojo) para ocultar las columnas deseadas.
     st.dataframe(
         st.session_state.tabla_carga, 
         use_container_width=True, 
@@ -368,6 +368,8 @@ if not st.session_state.tabla_carga.empty:
     st.write("### 📤 Reporte de Salida")
     patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
+    mensaje_wsp = f"Resume de Carga Camión: {patente_texto}\n"
+    mensaje_wsp = f"¼ Camion Patente: {patente_texto}\n"
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
     mensaje_wsp += f"----------------------------------------\n"
@@ -410,44 +412,48 @@ if not st.session_state.tabla_carga.empty:
     
     # 7. SECCIÓN CORREGIR ERRORES
     st.write("### 🛠️ Corregir Errores")
-    item_a_borrar_raw = st.text_input(
-        "Digita el N° de Ítem que deseas eliminar:", 
-        placeholder="Escribe el número de ítem aquí..."
+    folio_a_borrar_raw = st.text_input(
+        "Digita el N° de Folio que deseas eliminar:", 
+        placeholder="Escribe el número de folio aquí..."
     )
     
-    try:
-        item_a_borrar = int(item_a_borrar_raw.strip()) if item_a_borrar_raw else 0
-    except ValueError:
-        item_a_borrar = 0
+    folio_a_borrar = folio_a_borrar_raw.strip()
         
     st.markdown('<div class="boton-borrar">', unsafe_allow_html=True)
-    if item_a_borrar == 0:
-        texto_boton = "🗑️ INGRESA UN ÍTEM"
+    if not folio_a_borrar:
+        texto_boton = "🗑️ INGRESA UN FOLIO"
     else:
-        texto_boton = f"🗑️ ELIMINAR ÍTEM N° {item_a_borrar}"
+        texto_boton = f"🗑️ ELIMINAR FOLIO N° {folio_a_borrar}"
         
     if st.button(texto_boton):
-        if item_a_borrar == 0:
-            st.error("❌ Error: Debes ingresar un número de Ítem válido.")
+        if not folio_a_borrar:
+            st.error("❌ Error: Debes ingresar un número de Folio válido.")
         else:
-            items_existentes = st.session_state.tabla_carga["Ítem"].tolist()
-            if item_a_borrar not in items_existentes:
-                st.error(f"❌ Error: El Ítem N° {item_a_borrar} no existe en la carga actual.")
+            # Comprobar si el folio existe en el dataframe actual
+            st.session_state.tabla_carga["Folio"] = st.session_state.tabla_carga["Folio"].astype(str)
+            if folio_a_borrar not in st.session_state.tabla_carga["Folio"].values:
+                st.error(f"❌ Error: El Folio N° {folio_a_borrar} no existe en la carga actual.")
             else:
-                fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] == item_a_borrar].iloc[0]
-                folio_borrado = fila_seleccionada["Folio"]
+                # Obtener datos de la fila antes de borrarla para el informe
+                fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] == folio_a_borrar].iloc[0]
                 producto_borrado = fila_seleccionada["Producto"]
                 
-                st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] != item_a_borrar]
+                # Eliminar el registro de forma inmediata
+                st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] != folio_a_borrar]
+                # Reordenar los Ítems correlativos automáticamente
                 st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
                 
+                # Guardar directamente en la persistencia del archivo del dispositivo
                 guardar_datos(st.session_state.tabla_carga)
                 
-                st.success(f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio/Código: {folio_borrado})")
-                time.sleep(1.5)
-                st.session_state.estado_ultimo_fardo = "normal"
+                # Guardar el mensaje del registro eliminado en el estado para mostrarlo abajo sin desaparecer
+                st.session_state.mensaje_borrado = f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio/Código: {folio_a_borrar})"
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Mostrar el informe del elemento borrado inmediatamente más abajo de forma fija
+    if st.session_state.mensaje_borrado:
+        st.info(st.session_state.mensaje_borrado)
     
     st.write("") 
     
@@ -459,6 +465,7 @@ if not st.session_state.tabla_carga.empty:
         st.session_state.ultimo_folio_processed = 0
         st.session_state.folio_intentado = 0
         st.session_state.cantidad_pallets_processed = 0
+        st.session_state.mensaje_borrado = ""
         st.rerun()
 else:
     st.info("El contenedor está vacío. Empieza a registrar los fardos arriba.")
