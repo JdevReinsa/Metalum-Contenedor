@@ -1,7 +1,11 @@
 import streamlit as st
 import pandas as pd
 import urllib.parse
+import os
 import io
+
+# Nombre del archivo para evitar pérdida fatal de datos por recargas de página
+ARCHIVO_RESPALDO = "registro_fardos_metalum.csv"
 
 # 1. Configuración de la página
 st.set_page_config(
@@ -95,11 +99,25 @@ st.title("🏭 METALUM")
 st.subheader("Registro de Contenedor")
 st.divider()
 
-# --- INICIALIZACIÓN DE SESIÓN INDIVIDUAL ---
-columnas_correctas = ["Ítem", "Folio", "Peso (Kg)", "Producto"]
+# --- FUNCIONES DE PERSISTENCIA (SISTEMA ANTICAÍDAS) ---
+def guardar_en_disco(df):
+    df.to_csv(ARCHIVO_RESPALDO, index=False, encoding="utf-8")
 
+def cargar_desde_disco():
+    if os.path.exists(ARCHIVO_RESPALDO):
+        try:
+            df = pd.read_csv(ARCHIVO_RESPALDO, encoding="utf-8")
+            # Forzar tipos correctos al recuperar
+            df["Ítem"] = df["Ítem"].astype(int)
+            df["Folio"] = df["Folio"].astype(str)
+            return df
+        except Exception:
+            return pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
+    return pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
+
+# --- INICIALIZACIÓN DE SESIÓN INDIVIDUAL ---
 if "tabla_carga" not in st.session_state:
-    st.session_state.tabla_carga = pd.DataFrame(columns=columnas_correctas)
+    st.session_state.tabla_carga = cargar_desde_disco()
 if "estado_ultimo_fardo" not in st.session_state:
     st.session_state.estado_ultimo_fardo = "normal"
 if "ultimo_folio_processed" not in st.session_state:
@@ -177,7 +195,7 @@ def generar_excel(df, patente_nom, total_b, total_k, total_p):
         
     return output.getvalue()
 
-# 3. SELECCIÓN DE PRODUCTO (Fuera del formulario para actualizar cuadros dinámicamente)
+# 3. SELECCIÓN DE PRODUCTO
 producto = st.selectbox(
     "Selecciona el Producto:",
     ["UBC", "Perfil", "Tense", "Taint Tabor", "Radiador", "Acero", "Offset", "Pallets"],
@@ -232,11 +250,12 @@ if boton_guardar:
             
             nueva_fila = pd.DataFrame([{
                 "Ítem": int(siguiente_item),
-                "Folio": f"PL-{cant_p_val}", # Genera código borrable fácilmente (Ej: PL-15)
+                "Folio": f"PL-{cant_p_val}", 
                 "Peso (Kg)": "-",
                 "Producto": "Pallets"
             }])
             st.session_state.tabla_carga = pd.concat([st.session_state.tabla_carga, nueva_fila], ignore_index=True)
+            guardar_en_disco(st.session_state.tabla_carga) # Respaldo seguro e inmediato
             st.session_state.form_reset_counter += 1
             st.session_state.estado_ultimo_fardo = "exito_pallets"
             st.rerun()
@@ -271,6 +290,7 @@ if boton_guardar:
                 }])
                 
                 st.session_state.tabla_carga = pd.concat([st.session_state.tabla_carga, nueva_fila], ignore_index=True)
+                guardar_en_disco(st.session_state.tabla_carga) # Respaldo seguro e inmediato
                 st.session_state.form_reset_counter += 1
                 st.session_state.estado_ultimo_fardo = "exito"
                 st.rerun()
@@ -291,7 +311,6 @@ if not st.session_state.tabla_carga.empty:
     total_kg = int(df_fardos["Peso (Kg)"].sum()) if not df_fardos.empty else 0
     total_bultos = len(df_fardos)
     
-    # Extraer de forma limpia la cantidad sumada de unidades de pallets
     total_pallets_unidades = 0
     for _, fila in df_pallets.iterrows():
         partes = str(fila["Folio"]).split("-")
@@ -317,20 +336,21 @@ if not st.session_state.tabla_carga.empty:
     with col_der:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
     
-    # 🔄 INTERRUPTOR OPERATIVO: Oculta o muestra dinámicamente la columna Producto
+    # 🔄 INTERRUPTOR OPERATIVO RESTAURADO
     mostrar_producto = st.toggle("👁️ Mostrar columna Producto", value=False)
     
     columnas_visibles = ["Ítem", "Folio", "Peso (Kg)", "Producto"] if mostrar_producto else ["Ítem", "Folio", "Peso (Kg)"]
     df_pantalla = st.session_state.tabla_carga[columnas_visibles]
     
-    # CONFIGURACIÓN BLINDADA PARA MÓVILES: Fija, previene reordenamientos por error táctil
+    # 🔥 SOLUCIÓN DEFINITIVA AUTOAJUSTABLE PARA MÓVILES: 
+    # Quitamos anchos forzados fijos. Las columnas toman el tamaño justo y dinámico.
     configurador_columnas = {
-        "Ítem": st.column_config.Column("Ítem", required=True, disabled=True, width="small"),
-        "Folio": st.column_config.Column("Folio", required=True, disabled=True, width="medium"),
-        "Peso (Kg)": st.column_config.Column("Peso (Kg)", required=True, disabled=True, width="medium"),
+        "Ítem": st.column_config.Column("Ítem", disabled=True),
+        "Folio": st.column_config.Column("Folio", disabled=True),
+        "Peso (Kg)": st.column_config.Column("Peso (Kg)", disabled=True),
     }
     if mostrar_producto:
-        configurador_columnas["Producto"] = st.column_config.Column("Producto", required=True, disabled=True, width="medium")
+        configurador_columnas["Producto"] = st.column_config.Column("Producto", disabled=True)
 
     st.dataframe(
         df_pantalla, 
@@ -385,7 +405,7 @@ if not st.session_state.tabla_carga.empty:
     
     st.divider()
     
-    # 7. SECCIÓN CORREGIR ERRORES (ELIMINACIÓN TOTAL AL PRIMER CLIC POR FOLIO O CÓDIGO)
+    # 7. SECCIÓN CORREGIR ERRORES
     st.write("### 🛠️ Corregir Errores")
     folio_a_borrar_raw = st.text_input(
         "Digita el Folio del fardo o código del Pallet que deseas eliminar:", 
@@ -397,16 +417,18 @@ if not st.session_state.tabla_carga.empty:
     st.markdown('</div>', unsafe_allow_html=True)
     
     if boton_eliminar_folio:
-        folio_limpio = folio_a_borrar_raw.strip()
+        # 🔥 SOLUCIÓN AUTO-MAYÚSCULAS: Convierte lo ingresado a mayúsculas inmediatamente
+        folio_limpio = folio_a_borrar_raw.strip().upper()
         if not folio_limpio:
             st.error("Por favor, ingresa el folio o código de pallet que deseas remover.")
         else:
-            st.session_state.tabla_carga["Folio_Str"] = st.session_state.tabla_carga["Folio"].astype(str)
+            st.session_state.tabla_carga["Folio_Str"] = st.session_state.tabla_carga["Folio"].astype(str).str.upper()
             
             if folio_limpio in st.session_state.tabla_carga["Folio_Str"].values:
                 st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio_Str"] != folio_limpio]
                 st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
                 st.session_state.tabla_carga = st.session_state.tabla_carga.drop(columns=["Folio_Str"])
+                guardar_en_disco(st.session_state.tabla_carga) # Sincroniza la eliminación con el respaldo
                 st.success(f"¡Registro '{folio_limpio}' eliminado con éxito!")
                 st.rerun()
             else:
@@ -416,7 +438,9 @@ if not st.session_state.tabla_carga.empty:
     st.write("") 
     
     if st.button("⚠️ Reiniciar Todo (Camión Nuevo)"):
-        st.session_state.tabla_carga = pd.DataFrame(columns=columnas_correctas)
+        st.session_state.tabla_carga = pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
+        if os.path.exists(ARCHIVO_RESPALDO):
+            os.remove(ARCHIVO_RESPALDO) # Elimina el archivo físico para empezar el camión limpio
         st.session_state.estado_ultimo_fardo = "normal"
         st.session_state.ultimo_folio_processed = 0
         st.session_state.folio_intentado = 0
