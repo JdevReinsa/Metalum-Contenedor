@@ -10,11 +10,18 @@ ARCHIVO_DATOS = "registro_fardos_metalum.csv"
 
 # 1. Configuración de la página
 st.set_page_config(
-    page_title="Metalum - Carga", 
+    page_title="Carga contenedor", # <-- Nombre profesional en la pestaña del navegador
     page_icon="🚛", 
     layout="centered",
     initial_sidebar_state="collapsed"
 )
+
+# 📱 CONEXIÓN CON EL MANIFEST PARA EL ACCESO DIRECTO MÓVIL
+st.markdown('<link rel="manifest" href="./manifest.json">', unsafe_allow_html=True)
+# Configuración extra para iPhones (iOS)
+st.markdown('<meta name="apple-mobile-web-app-title" content="Carga contenedor">', unsafe_allow_html=True)
+st.markdown('<meta name="apple-mobile-web-app-capable" content="yes">', unsafe_allow_html=True)
+st.markdown('<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3066/3066514.png">', unsafe_allow_html=True)
 
 # Estilo CSS inyectado optimizado para limpiar la interfaz
 st.markdown("""
@@ -112,7 +119,6 @@ def generar_excel(df, patente_nom, total_b, total_k):
         workbook  = writer.book
         worksheet = writer.sheets['Reporte Carga']
         
-        # Formato profesional para encabezados (Verde oscuro, texto blanco, alineado a la izquierda)
         header_format = workbook.add_format({
             'bold': True,
             'text_wrap': True,
@@ -123,36 +129,30 @@ def generar_excel(df, patente_nom, total_b, total_k):
             'border': 1
         })
         
-        # Formato de celdas: Todo estrictamente alineado a la izquierda con bordes para impresión limpia
         cell_format = workbook.add_format({
             'align': 'left',
             'valign': 'vcenter',
             'border': 1
         })
         
-        # Formatos para los totales de abajo
         bold_label = workbook.add_format({'bold': True, 'align': 'left'})
         normal_label = workbook.add_format({'align': 'left'})
         
-        # Aplicar el formato a los encabezados
         for col_num, header in enumerate(df_excel.columns):
             worksheet.write(0, col_num, header, header_format)
             
-        # Reescribir los datos con la alineación a la izquierda y bordes requeridos
         for row_idx in range(len(df_excel)):
-            worksheet.write(row_idx + 1, 0, int(df_excel.iloc[row_idx, 0]), cell_format) # Ítem
-            worksheet.write(row_idx + 1, 1, int(df_excel.iloc[row_idx, 1]), cell_format) # Folio
-            worksheet.write(row_idx + 1, 2, int(df_excel.iloc[row_idx, 2]), cell_format) # Peso
-            worksheet.write(row_idx + 1, 3, str(df_excel.iloc[row_idx, 3]), cell_format) # Producto
+            worksheet.write(row_idx + 1, 0, int(df_excel.iloc[row_idx, 0]), cell_format)
+            worksheet.write(row_idx + 1, 1, int(df_excel.iloc[row_idx, 1]), cell_format)
+            worksheet.write(row_idx + 1, 2, int(df_excel.iloc[row_idx, 2]), cell_format)
+            worksheet.write(row_idx + 1, 3, str(df_excel.iloc[row_idx, 3]), cell_format)
 
-        # Auto-ajuste inteligente de columnas con alineación izquierda
         for col_num, col_name in enumerate(df_excel.columns):
             max_len = len(str(col_name))
             for val in df_excel[col_name]:
                 max_len = max(max_len, len(str(val)))
             worksheet.set_column(col_num, col_num, max_len + 5)
             
-        # Resumen final al final de las filas
         start_row = len(df_excel) + 2
         worksheet.write(start_row, 1, "Patente Camión:", bold_label)
         worksheet.write(start_row, 2, patente_nom, normal_label)
@@ -186,8 +186,6 @@ with st.form(key="formulario_fardo"):
     )
     
     ctr = st.session_state.form_reset_counter
-    
-    # 🟢 SE AGREGA max_chars=8 PARA CONTROLAR EL MÁXIMO DE CARACTERES PERMITIDOS
     peso_raw = st.text_input("Peso (Kg):", placeholder="Escribe el peso...", max_chars=8, key=f"peso_{ctr}")
     folio_raw = st.text_input("Número de Folio:", placeholder="Escribe el folio...", max_chars=8, key=f"folio_{ctr}")
     
@@ -285,7 +283,6 @@ if not st.session_state.tabla_carga.empty:
     st.write("### 📤 Reporte de Salida")
     patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
-    # Mensaje de WhatsApp Texto estándar
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
     mensaje_wsp += f"----------------------------------------\n"
@@ -299,7 +296,6 @@ if not st.session_state.tabla_carga.empty:
     texto_codificado = urllib.parse.quote(mensaje_wsp)
     enlace_whatsapp = f"https://api.whatsapp.com/send?text={texto_codificado}"
     
-    # Botón 1: WhatsApp Texto
     st.markdown(f"""
         <div class="boton-wsp">
             <a href="{enlace_whatsapp}" target="_blank">
@@ -313,7 +309,6 @@ if not st.session_state.tabla_carga.empty:
     
     st.write("") 
     
-    # Botón 2: Excel con Descarga Directa y Limpia (SÓLO DESCARGA)
     data_excel = generar_excel(st.session_state.tabla_carga, patente_texto, total_bultos, total_kg)
     st.markdown('<div class="boton-excel-wsp">', unsafe_allow_html=True)
     st.download_button(
