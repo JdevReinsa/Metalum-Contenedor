@@ -1,27 +1,28 @@
 import streamlit as st
 import pandas as pd
+import time
 import urllib.parse
 import os
 import io
 
-# Nombre del archivo para evitar pérdida fatal de datos por recargas de página
-ARCHIVO_RESPALDO = "registro_fardos_metalum.csv"
+# Nombre del archivo donde se guardará la información de forma permanente
+ARCHIVO_DATOS = "registro_fardos_metalum.csv"
 
 # 1. Configuración de la página
 st.set_page_config(
-    page_title="Carga contenedor",
-    page_icon="🚛",
+    page_title="Carga contenedor", 
+    page_icon="🚛", 
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# 📱 CONFIGURACIÓN PARA ACCESO DIRECTO MÓVIL
+# 📱 CONEXIÓN CON EL MANIFEST PARA EL ACCESO DIRECTO MÓVIL
 st.markdown('<link rel="manifest" href="./manifest.json">', unsafe_allow_html=True)
 st.markdown('<meta name="apple-mobile-web-app-title" content="Carga contenedor">', unsafe_allow_html=True)
 st.markdown('<meta name="apple-mobile-web-app-capable" content="yes">', unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3066/3066514.png">', unsafe_allow_html=True)
 
-# Estilo CSS inyectado para limpiar la interfaz y optimizar botones en móviles
+# Estilo CSS inyectado optimizado para limpiar la interfaz
 st.markdown("""
     <style>
     [data-testid="stHeader"] {
@@ -44,21 +45,10 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; font-weight: bold !important; }
-    .boton-borrar>div>button { background-color: #d32f2f !important; color: white !important; height: 55px !important; font-weight: bold !important; }
-    
-    /* Estilos para textos de alertas al costado del botón */
-    .alerta-texto {
-        display: flex;
-        align-items: center;
-        height: 55px;
-        font-size: 15px;
-        font-weight: bold;
-        padding-left: 10px;
-        border-radius: 8px;
-    }
-    .alerta-exito { color: #2e7d32; }
-    .alerta-error { color: #d32f2f; }
+    .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; }
+    .boton-exito>div>button { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }
+    .boton-error>div>button { background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }
+    .boton-borrar>div>button { background-color: #555555 !important; color: white !important; height: 55px !important; }
     
     /* Estilo botón WhatsApp Texto */
     .boton-wsp>div>a {
@@ -99,38 +89,26 @@ st.title("🏭 METALUM")
 st.subheader("Registro de Contenedor")
 st.divider()
 
-# --- FUNCIONES DE PERSISTENCIA (SISTEMA ANTICAÍDAS) ---
-def guardar_en_disco(df):
-    df.to_csv(ARCHIVO_RESPALDO, index=False, encoding="utf-8")
-
-def cargar_desde_disco():
-    if os.path.exists(ARCHIVO_RESPALDO):
+# --- CARGAR DATOS ---
+def cargar_datos():
+    columnas_correctas = ["Ítem", "Folio", "Peso (Kg)", "Producto"]
+    if os.path.exists(ARCHIVO_DATOS):
         try:
-            df = pd.read_csv(ARCHIVO_RESPALDO, encoding="utf-8")
-            # Forzar tipos correctos al recuperar
+            df = pd.read_csv(ARCHIVO_DATOS)
             df["Ítem"] = df["Ítem"].astype(int)
             df["Folio"] = df["Folio"].astype(str)
+            df = df.reindex(columns=columnas_correctas)
             return df
         except Exception:
-            return pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
-    return pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
+            return pd.DataFrame(columns=columnas_correctas)
+    return pd.DataFrame(columns=columnas_correctas)
 
-# --- INICIALIZACIÓN DE SESIÓN INDIVIDUAL ---
-if "tabla_carga" not in st.session_state:
-    st.session_state.tabla_carga = cargar_desde_disco()
-if "estado_ultimo_fardo" not in st.session_state:
-    st.session_state.estado_ultimo_fardo = "normal"
-if "ultimo_folio_processed" not in st.session_state:
-    st.session_state.ultimo_folio_processed = 0
-if "folio_intentado" not in st.session_state:
-    st.session_state.folio_intentado = 0
-if "cantidad_pallets_processed" not in st.session_state:
-    st.session_state.cantidad_pallets_processed = 0
-if "form_reset_counter" not in st.session_state:
-    st.session_state.form_reset_counter = 0
+# --- GUARDAR DATOS ---
+def guardar_datos(df):
+    df.to_csv(ARCHIVO_DATOS, index=False)
 
 # --- GENERAR EXCEL PROFESIONAL PARA IMPRESIÓN ---
-def generar_excel(df, patente_nom, total_b, total_k, total_p):
+def generar_excel(df, patente_nom, total_b, total_k):
     output = io.BytesIO()
     df_excel = df.copy()
     
@@ -184,149 +162,111 @@ def generar_excel(df, patente_nom, total_b, total_k, total_p):
         worksheet.write(start_row, 1, "Patente Camión:", bold_label)
         worksheet.write(start_row, 2, patente_nom, normal_label)
         
-        worksheet.write(start_row + 1, 1, "Total Bultos (Fardos):", bold_label)
+        worksheet.write(start_row + 1, 1, "Total Bultos:", bold_label)
         worksheet.write(start_row + 1, 2, f"{total_b} fardos", normal_label)
         
-        worksheet.write(start_row + 2, 1, "Peso Total Fardos:", bold_label)
+        worksheet.write(start_row + 2, 1, "Peso Total:", bold_label)
         worksheet.write(start_row + 2, 2, f"{total_k:,} Kg", normal_label)
-        
-        worksheet.write(start_row + 3, 1, "Total Pallets:", bold_label)
-        worksheet.write(start_row + 3, 2, f"{total_p} unidades", normal_label)
         
     return output.getvalue()
 
-# 3. SELECCIÓN DE PRODUCTO
-producto = st.selectbox(
-    "Selecciona el Producto:",
-    ["UBC", "Perfil", "Tense", "Taint Tabor", "Radiador", "Acero", "Offset", "Pallets"],
-    key="producto_seleccionado"
-)
+# Inicializar Estados
+if "tabla_carga" not in st.session_state:
+    st.session_state.tabla_carga = cargar_datos()
+if "estado_ultimo_fardo" not in st.session_state:
+    st.session_state.estado_ultimo_fardo = "normal"
+if "ultimo_folio_processed" not in st.session_state:
+    st.session_state.ultimo_folio_processed = 0
+if "folio_intentado" not in st.session_state:
+    st.session_state.folio_intentado = 0
+if "form_reset_counter" not in st.session_state:
+    st.session_state.form_reset_counter = 0
 
-# 4. FORMULARIO DE CARGA INTELIGENTE
-with st.form(key="formulario_fardo", clear_on_submit=False):
+# 3. FORMULARIO DE CARGA
+with st.form(key="formulario_fardo"):
+    producto = st.selectbox(
+        "Selecciona el Producto:",
+        ["UBC", "Perfil", "Tense", "Taint Tabor", "Radiador", "Acero", "Offset"],
+        key="producto_seleccionado"
+    )
+    
     ctr = st.session_state.form_reset_counter
+    peso_raw = st.text_input("Peso (Kg):", placeholder="Escribe el peso...", max_chars=8, key=f"peso_{ctr}")
+    folio_raw = st.text_input("Número de Folio:", placeholder="Escribe el folio...", max_chars=8, key=f"folio_{ctr}")
     
-    if producto == "Pallets":
-        cantidad_pallets_raw = st.text_input("Cantidad de Pallets:", placeholder="Escribe el número de pallets...", max_chars=5, key=f"pallets_{ctr}")
-        peso_raw = "0"
-        folio_raw = "0"
+    f_proc = st.session_state.ultimo_folio_processed
+    f_rep = st.session_state.folio_intentado
+    
+    if st.session_state.estado_ultimo_fardo == "exito":
+        clase_boton = "boton-exito"
+        texto_boton = f"✅ ¡FARDO #{f_proc} SUBIDO! (ENTER)"
+    elif st.session_state.estado_ultimo_fardo == "error_duplicado":
+        clase_boton = "boton-error"
+        texto_boton = f"❌ ¡FOLIO #{f_rep} REPETIDO! ✖️"
+    elif st.session_state.estado_ultimo_fardo == "error_vacio":
+        clase_boton = "boton-error"
+        texto_boton = "❌ ERROR: ¡DATOS VACÍOS O INVÁLIDOS! ✖️"
     else:
-        peso_raw = st.text_input("Peso (Kg):", placeholder="Escribe el peso...", max_chars=8, key=f"peso_{ctr}")
-        folio_raw = st.text_input("Número de Folio:", placeholder="Escribe el folio...", max_chars=8, key=f"folio_{ctr}")
-        cantidad_pallets_raw = "0"
-        
-    col_btn, col_msg = st.columns([5, 5])
-    
-    with col_btn:
-        st.markdown('<div class="boton-normal">', unsafe_allow_html=True)
-        boton_guardar = st.form_submit_button(label="➕ AGREGAR REGISTRO")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-    with col_msg:
-        f_proc = st.session_state.ultimo_folio_processed
-        f_rep = st.session_state.folio_intentado
-        p_proc = st.session_state.cantidad_pallets_processed
-        
-        if st.session_state.estado_ultimo_fardo == "exito":
-            st.markdown(f'<div class="alerta-texto alerta-exito">✅ ¡Fardo #{f_proc} Subido!</div>', unsafe_allow_html=True)
-        elif st.session_state.estado_ultimo_fardo == "exito_pallets":
-            st.markdown(f'<div class="alerta-texto alerta-exito">✅ ¡{p_proc} Pallets Añadidos!</div>', unsafe_allow_html=True)
-        elif st.session_state.estado_ultimo_fardo == "error_duplicado":
-            st.markdown(f'<div class="alerta-texto alerta-error">❌ ¡Folio #{f_rep} Duplicado!</div>', unsafe_allow_html=True)
-        elif st.session_state.estado_ultimo_fardo == "error_vacio":
-            st.markdown('<div class="alerta-texto alerta-error">❌ ¡Datos Inválidos!</div>', unsafe_allow_html=True)
+        clase_boton = "boton-normal"
+        texto_boton = "➕ AGREGAR FARDO"
 
-# 5. LÓGICA DE PROCESAMIENTO (INMEDIATO)
+    st.markdown(f'<div class="{clase_boton}">', unsafe_allow_html=True)
+    boton_guardar = st.form_submit_button(label=texto_boton)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# 4. LÓGICA DE PROCESAMIENTO
 if boton_guardar:
-    if producto == "Pallets":
-        try:
-            cant_p_val = int(cantidad_pallets_raw.strip()) if cantidad_pallets_raw else 0
-        except ValueError:
-            cant_p_val = 0
-            
-        if cant_p_val > 0:
-            st.session_state.cantidad_pallets_processed = cant_p_val
+    try:
+        peso_val = int(peso_raw.strip()) if peso_raw else 0
+        folio_val = int(folio_raw.strip()) if folio_raw else 0
+    except ValueError:
+        peso_val = 0
+        folio_val = 0
+        
+    st.session_state.folio_intentado = folio_val
+    
+    if peso_val > 0 and folio_val > 0:
+        folios_existentes = st.session_state.tabla_carga["Folio"].astype(str).values
+        if str(folio_val) in folios_existentes:
+            st.session_state.estado_ultimo_fardo = "error_duplicado"
+            st.rerun()
+        else:
+            st.session_state.ultimo_folio_processed = folio_val
             siguiente_item = st.session_state.tabla_carga["Ítem"].max() + 1 if len(st.session_state.tabla_carga) > 0 else 1
             
             nueva_fila = pd.DataFrame([{
                 "Ítem": int(siguiente_item),
-                "Folio": f"PL-{cant_p_val}", 
-                "Peso (Kg)": "-",
-                "Producto": "Pallets"
+                "Folio": str(folio_val),
+                "Peso (Kg)": peso_val,
+                "Producto": producto
             }])
+            
             st.session_state.tabla_carga = pd.concat([st.session_state.tabla_carga, nueva_fila], ignore_index=True)
-            guardar_en_disco(st.session_state.tabla_carga) # Respaldo seguro e inmediato
+            guardar_datos(st.session_state.tabla_carga)
             st.session_state.form_reset_counter += 1
-            st.session_state.estado_ultimo_fardo = "exito_pallets"
-            st.rerun()
-        else:
-            st.session_state.estado_ultimo_fardo = "error_vacio"
+            st.session_state.estado_ultimo_fardo = "exito"
             st.rerun()
     else:
-        try:
-            peso_val = int(peso_raw.strip()) if peso_raw else 0
-            folio_val = int(folio_raw.strip()) if folio_raw else 0
-        except ValueError:
-            peso_val = 0
-            folio_val = 0
-            
-        st.session_state.folio_intentado = folio_val
-        
-        if peso_val > 0 and folio_val > 0:
-            folios_existentes = st.session_state.tabla_carga["Folio"].astype(str).values
-                
-            if str(folio_val) in folios_existentes:
-                st.session_state.estado_ultimo_fardo = "error_duplicado"
-                st.rerun()
-            else:
-                st.session_state.ultimo_folio_processed = folio_val
-                siguiente_item = st.session_state.tabla_carga["Ítem"].max() + 1 if len(st.session_state.tabla_carga) > 0 else 1
-                
-                nueva_fila = pd.DataFrame([{
-                    "Ítem": int(siguiente_item),
-                    "Folio": str(folio_val),
-                    "Peso (Kg)": int(peso_val),
-                    "Producto": producto
-                }])
-                
-                st.session_state.tabla_carga = pd.concat([st.session_state.tabla_carga, nueva_fila], ignore_index=True)
-                guardar_en_disco(st.session_state.tabla_carga) # Respaldo seguro e inmediato
-                st.session_state.form_reset_counter += 1
-                st.session_state.estado_ultimo_fardo = "exito"
-                st.rerun()
-        else:
-            st.session_state.estado_ultimo_fardo = "error_vacio"
-            st.rerun()
+        st.session_state.estado_ultimo_fardo = "error_vacio"
+        st.rerun()
 
-if st.session_state.estado_ultimo_fardo != "normal" and not boton_guardar:
+if st.session_state.estado_ultimo_fardo != "normal":
+    time.sleep(1.2)
     st.session_state.estado_ultimo_fardo = "normal"
+    st.rerun()
 
 st.divider()
 
-# 6. MONITOREO Y METRICAS EN TIEMPO REAL
+# 5. MONITOREO EN TIEMPO REAL
 if not st.session_state.tabla_carga.empty:
-    df_fardos = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] != "Pallets"]
-    df_pallets = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] == "Pallets"]
+    total_kg = int(st.session_state.tabla_carga["Peso (Kg)"].sum())
+    total_bultos = len(st.session_state.tabla_carga)
     
-    total_kg = int(df_fardos["Peso (Kg)"].sum()) if not df_fardos.empty else 0
-    total_bultos = len(df_fardos)
-    
-    total_pallets_unidades = 0
-    for _, fila in df_pallets.iterrows():
-        partes = str(fila["Folio"]).split("-")
-        if len(partes) == 2:
-            try:
-                total_pallets_unidades += int(partes[1].strip())
-            except ValueError:
-                pass
-
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
     with col1:
         st.metric(label="TOTAL KILOS", value=f"{total_kg:,} Kg")
     with col2:
         st.metric(label="TOTAL BULTOS", value=f"{total_bultos} fardos")
-    with col3:
-        st.metric(label="TOTAL PALLETS", value=f"{total_pallets_unidades} und")
     
     st.divider()
     
@@ -336,46 +276,25 @@ if not st.session_state.tabla_carga.empty:
     with col_der:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
     
-    # 🔄 INTERRUPTOR OPERATIVO RESTAURADO
-    mostrar_producto = st.toggle("👁️ Mostrar columna Producto", value=False)
-    
-    columnas_visibles = ["Ítem", "Folio", "Peso (Kg)", "Producto"] if mostrar_producto else ["Ítem", "Folio", "Peso (Kg)"]
-    df_pantalla = st.session_state.tabla_carga[columnas_visibles]
-    
-    # 🔥 SOLUCIÓN DEFINITIVA AUTOAJUSTABLE PARA MÓVILES: 
-    # Quitamos anchos forzados fijos. Las columnas toman el tamaño justo y dinámico.
-    configurador_columnas = {
-        "Ítem": st.column_config.Column("Ítem", disabled=True),
-        "Folio": st.column_config.Column("Folio", disabled=True),
-        "Peso (Kg)": st.column_config.Column("Peso (Kg)", disabled=True),
-    }
-    if mostrar_producto:
-        configurador_columnas["Producto"] = st.column_config.Column("Producto", disabled=True)
-
-    st.dataframe(
-        df_pantalla, 
-        use_container_width=True, 
-        hide_index=True,
-        column_config=configurador_columnas
-    )
+    # 👁️ SE ELIMINÓ EL BOTÓN TOGGLE MANUAL. 
+    # Enviamos siempre el DataFrame completo para que el operario use el ícono del ojo nativo de la tabla.
+    st.dataframe(st.session_state.tabla_carga, use_container_width=True, hide_index=True)
     
     st.divider()
 
-    # 📤 REPORTES DE SALIDA INTEGRADOS
+    # REPORTES DE SALIDA
     st.write("### 📤 Reporte de Salida")
     patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
     mensaje_wsp += f"----------------------------------------\n"
-    mensaje_wsp += f"`Ítem | Folio/Cant | Peso | Producto`\n"
+    mensaje_wsp += f"`Ítem | Folio | Peso(Kg) | Producto`\n"
     for idx, fila in st.session_state.tabla_carga.iterrows():
-        peso_txt = f"{fila['Peso (Kg)']} Kg" if fila['Peso (Kg)'] != "-" else "-"
-        mensaje_wsp += f"{int(fila['Ítem'])} | {fila['Folio']} | {peso_txt} | {fila['Producto']}\n"
+        mensaje_wsp += f"{int(fila['Ítem'])} | F:{fila['Folio']} | {int(fila['Peso (Kg)'])} Kg | {fila['Producto']}\n"
     mensaje_wsp += f"----------------------------------------\n"
-    mensaje_wsp += f"📦 *Total Bultos (Fardos):* {total_bultos}\n"
-    mensaje_wsp += f"⚖️ *Peso Total:* {total_kg:,} Kg\n"
-    mensaje_wsp += f"🪵 *Total Pallets:* {total_pallets_unidades} unidades"
+    mensaje_wsp += f"📦 *Total Bultos:* {total_bultos}\n"
+    mensaje_wsp += f"⚖️ *Peso Total:* {total_kg:,} Kg"
     
     texto_codificado = urllib.parse.quote(mensaje_wsp)
     enlace_whatsapp = f"https://api.whatsapp.com/send?text={texto_codificado}"
@@ -393,7 +312,7 @@ if not st.session_state.tabla_carga.empty:
     
     st.write("") 
     
-    data_excel = generar_excel(st.session_state.tabla_carga, patente_texto, total_bultos, total_kg, total_pallets_unidades)
+    data_excel = generar_excel(st.session_state.tabla_carga, patente_texto, total_bultos, total_kg)
     st.markdown('<div class="boton-excel-wsp">', unsafe_allow_html=True)
     st.download_button(
         label="📊 DESCARGAR EXCEL",  
@@ -405,46 +324,61 @@ if not st.session_state.tabla_carga.empty:
     
     st.divider()
     
-    # 7. SECCIÓN CORREGIR ERRORES
+    # Sección para corregir errores
     st.write("### 🛠️ Corregir Errores")
-    folio_a_borrar_raw = st.text_input(
-        "Digita el Folio del fardo o código del Pallet que deseas eliminar:", 
-        placeholder="Ej: 1024 o PL-15"
+    item_a_borrar_raw = st.text_input(
+        "Digita el N° de Ítem que deseas eliminar:", 
+        placeholder="Escribe el número de ítem aquí..."
     )
     
+    try:
+        item_a_borrar = int(item_a_borrar_raw.strip()) if item_a_borrar_raw else 0
+    except ValueError:
+        item_a_borrar = 0
+        
     st.markdown('<div class="boton-borrar">', unsafe_allow_html=True)
-    boton_eliminar_folio = st.button("🗑️ ELIMINAR REGISTRO")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    if boton_eliminar_folio:
-        # 🔥 SOLUCIÓN AUTO-MAYÚSCULAS: Convierte lo ingresado a mayúsculas inmediatamente
-        folio_limpio = folio_a_borrar_raw.strip().upper()
-        if not folio_limpio:
-            st.error("Por favor, ingresa el folio o código de pallet que deseas remover.")
+    if item_a_borrar == 0:
+        texto_boton = "🗑️ INGRESA UN ÍTEM"
+    else:
+        texto_boton = f"🗑️ ELIMINAR ÍTEM N° {item_a_borrar}"
+        
+    if st.button(texto_boton):
+        if item_a_borrar == 0:
+            # 🔴 MARCA CON ROJO EN CASO DE ERROR
+            st.error("❌ Error: Debes ingresar un número de Ítem válido.")
         else:
-            st.session_state.tabla_carga["Folio_Str"] = st.session_state.tabla_carga["Folio"].astype(str).str.upper()
-            
-            if folio_limpio in st.session_state.tabla_carga["Folio_Str"].values:
-                st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio_Str"] != folio_limpio]
-                st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
-                st.session_state.tabla_carga = st.session_state.tabla_carga.drop(columns=["Folio_Str"])
-                guardar_en_disco(st.session_state.tabla_carga) # Sincroniza la eliminación con el respaldo
-                st.success(f"¡Registro '{folio_limpio}' eliminado con éxito!")
-                st.rerun()
+            items_existentes = st.session_state.tabla_carga["Ítem"].tolist()
+            if item_a_borrar not in items_existentes:
+                # 🔴 MARCA CON ROJO EN CASO DE QUE NO EXISTA
+                st.error(f"❌ Error: El Ítem N° {item_a_borrar} no existe en la carga actual.")
             else:
-                st.session_state.tabla_carga = st.session_state.tabla_carga.drop(columns=["Folio_Str"])
-                st.error(f"El Folio o código '{folio_limpio}' no existe en la carga activa.")
+                # Extraemos la información del producto antes de borrarlo para el reporte en pantalla
+                fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] == item_a_borrar].iloc[0]
+                folio_borrado = fila_seleccionada["Folio"]
+                producto_borrado = fila_seleccionada["Producto"]
+                
+                # Ejecutamos la eliminación
+                st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] != item_a_borrar]
+                st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
+                
+                guardar_datos(st.session_state.tabla_carga)
+                
+                # 🟢 MARCA CON VERDE EXPLICANDO QUÉ PRODUCTO Y FOLIO SE HA BORRADO
+                st.success(f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio: {folio_borrado})")
+                time.sleep(1.5)
+                st.session_state.estado_ultimo_fardo = "normal"
+                st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
     
     st.write("") 
     
     if st.button("⚠️ Reiniciar Todo (Camión Nuevo)"):
         st.session_state.tabla_carga = pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
-        if os.path.exists(ARCHIVO_RESPALDO):
-            os.remove(ARCHIVO_RESPALDO) # Elimina el archivo físico para empezar el camión limpio
+        if os.path.exists(ARCHIVO_DATOS):
+            os.remove(ARCHIVO_DATOS)
         st.session_state.estado_ultimo_fardo = "normal"
         st.session_state.ultimo_folio_processed = 0
         st.session_state.folio_intentado = 0
-        st.session_state.cantidad_pallets_processed = 0
         st.rerun()
 else:
     st.info("El contenedor está vacío. Empieza a registrar los fardos arriba.")
