@@ -18,15 +18,14 @@ st.set_page_config(
 
 # Inicializar estados para el tema interactivo y clics
 if "tema_oscuro" not in st.session_state:
-    st.session_state.tema_oscuro = True  # Inicia por defecto en modo oscuro
+    st.session_state.tema_oscuro = True  # Por defecto inicia en oscuro
 
 if "contador_clicks_industria" not in st.session_state:
     st.session_state.contador_clicks_industria = 0
 
-# --- INYECCIÓN DE CSS DINÁMICO SEGÚN EL MODO SELECCIONADO ---
+# --- CONFIGURACIÓN DEL COLOR GLOBAL (SIN TOCAR INPUTS NI CELDAS) ---
 if st.session_state.tema_oscuro:
-    # Estilo Modo Oscuro
-    css_tema = """
+    css_color_global = """
     html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #0e1117 !important;
         color: #ffffff !important;
@@ -34,15 +33,9 @@ if st.session_state.tema_oscuro:
     h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricLabel"] {
         color: #ffffff !important;
     }
-    input, select, div[data-baseweb="select"] {
-        background-color: #1f2937 !important;
-        color: #ffffff !important;
-        border: 1px solid #4b5563 !important;
-    }
     """
 else:
-    # Estilo Modo Claro
-    css_tema = """
+    css_color_global = """
     html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
         background-color: #ffffff !important;
         color: #111827 !important;
@@ -50,18 +43,14 @@ else:
     h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricLabel"] {
         color: #111827 !important;
     }
-    input, select, div[data-baseweb="select"] {
-        background-color: #f3f4f6 !important;
-        color: #111827 !important;
-        border: 1px solid #d1d5db !important;
-    }
     """
 
-# CSS general de la app (Botones, ocultar cabeceras nativas)
+# CSS Estructural de la aplicación
 st.markdown(f"""
     <style>
-    {css_tema}
+    {css_color_global}
     
+    /* Quitar elementos nativos molestos de Streamlit */
     [data-testid="stHeader"] {{
         visibility: hidden;
         height: 0% !important;
@@ -73,7 +62,7 @@ st.markdown(f"""
         display: none !important;
     }}
     
-    /* Estilo general para botones */
+    /* Estilo base para botones */
     .stButton>button, .stDownloadButton>button {{
         width: 100%;
         height: 55px;
@@ -87,7 +76,7 @@ st.markdown(f"""
     .boton-error>div>button {{ background-color: #d32f2f !important; color: white !important; font-weight: bold !important; border: none !important; }}
     .boton-borrar>div>button {{ background-color: #4b5563 !important; color: white !important; height: 55px !important; border: none !important; }}
     
-    /* Estilo del link-botón de WhatsApp */
+    /* Estilo botón WhatsApp Texto */
     .boton-wsp>div>a {{
         display: flex;
         align-items: center;
@@ -103,7 +92,7 @@ st.markdown(f"""
         font-size: 18px;
     }}
     
-    /* Estilo del botón nativo de Excel */
+    /* Estilo botón Excel Estable */
     .boton-excel-wsp>div>button {{
         display: flex !important;
         align-items: center !important;
@@ -116,39 +105,38 @@ st.markdown(f"""
         border: none !important;
     }}
     
-    input {{
-        height: 45px !important;
-        font-size: 16px !important;
+    /* Capa invisible para detectar los clics sobre el emoji del título sin romper tamaños */
+    .contenedor-titulo {{
+        position: relative;
+        display: inline-block;
     }}
-    
-    /* Estilo para el botón invisible de la industria */
-    .btn-industria {{
-        background: none !important;
-        border: none !important;
-        padding: 0 !important;
-        font-size: 32px !important;
+    .boton-secreto {{
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 50px;
+        height: 100%;
+        opacity: 0;
         cursor: pointer;
-        line-height: 1;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-
-# --- LÓGICA DE DETECCIÓN DE TRIPLE CLICK EN LA INDUSTRIA ---
-col_logo, col_titulo = st.columns([1, 7])
-
-with col_logo:
-    # Un botón nativo estilizado como texto plano para capturar los clics en la industria sin romper el diseño
-    if st.button("🏭", key="click_secreto_industria", help="Cambiar modo visual"):
+# --- CABECERA CON DETECTOR DE REGLA INVISIBLE ---
+# Colocamos un botón invisible de Streamlit justo encima del emoji original
+col1, col2 = st.columns([1, 10])
+with col1:
+    if st.button("", key="trigger_secreto", help="Cambiar Modo visual"):
         st.session_state.contador_clicks_industria += 1
         if st.session_state.contador_clicks_industria >= 3:
             st.session_state.tema_oscuro = not st.session_state.tema_oscuro
             st.session_state.contador_clicks_industria = 0
             st.rerun()
+            
+    # El título se dibuja de forma normal con su emoji tal como te gustaba antes
+    st.markdown("<div style='position: absolute; top: -45px; left: 15px; pointer-events: none;'><h1>🏭</h1></div>", unsafe_allow_html=True)
 
-with col_titulo:
-    st.markdown("<h1 style='margin:0; padding:0; line-height:1.1;'>METALUM</h1>", unsafe_allow_html=True)
-
+st.markdown("<h1 style='margin-top: -10px;'>METALUM</h1>", unsafe_allow_html=True)
 st.subheader("Registro de Contenedor")
 st.divider()
 
@@ -170,7 +158,7 @@ def cargar_datos():
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
 
-# --- GENERAR EXCEL PREMIUM DE RESPALDO Y APTO PARA IMPRESIÓN ---
+# --- GENERAR EXCEL LIMPIO PARA IMPRESIÓN DE RESPALDO ---
 def generar_excel(df, patente_nom, total_b, total_k):
     output = io.BytesIO()
     df_excel = df.copy()
@@ -181,7 +169,6 @@ def generar_excel(df, patente_nom, total_b, total_k):
         workbook  = writer.book
         worksheet = writer.sheets['Reporte Carga']
         
-        # Formato de la cabecera (Estilo corporativo Excel, texto blanco, fondo verde oscuro, centrado y con bordes)
         header_format = workbook.add_format({
             'bold': True,
             'text_wrap': True,
@@ -192,34 +179,28 @@ def generar_excel(df, patente_nom, total_b, total_k):
             'border': 1
         })
         
-        # Formatos para el cuerpo de la tabla (Garantiza que se impriman todas las líneas divisorias de cuadrícula)
         center_format = workbook.add_format({'align': 'center', 'border': 1})
         right_format = workbook.add_format({'align': 'right', 'border': 1, 'num_format': '#,##0'})
         left_format = workbook.add_format({'align': 'left', 'border': 1})
         
-        # Formatos especiales para resaltar los Totales al pie de página
-        bold_label = workbook.add_format({'bold': True, 'align': 'right', 'font_size': 11})
-        bold_value = workbook.add_format({'bold': True, 'align': 'left', 'font_size': 11})
+        bold_label = workbook.add_format({'bold': True, 'align': 'right'})
+        bold_value = workbook.add_format({'bold': True, 'align': 'left'})
         
-        # Aplicar el formato premium a los encabezados
         for col_num, header in enumerate(df_excel.columns):
             worksheet.write(0, col_num, header, header_format)
             
-        # Forzar la escritura de datos aplicando alineación y cuadrículas completas
         for row_idx in range(len(df_excel)):
-            worksheet.write(row_idx + 1, 0, df_excel.iloc[row_idx, 0], center_format) # Ítem
-            worksheet.write(row_idx + 1, 1, df_excel.iloc[row_idx, 1], center_format) # Folio
-            worksheet.write(row_idx + 1, 2, df_excel.iloc[row_idx, 2], right_format)  # Peso (Kg)
-            worksheet.write(row_idx + 1, 3, df_excel.iloc[row_idx, 3], left_format)   # Producto
+            worksheet.write(row_idx + 1, 0, df_excel.iloc[row_idx, 0], center_format)
+            worksheet.write(row_idx + 1, 1, df_excel.iloc[row_idx, 1], center_format)
+            worksheet.write(row_idx + 1, 2, df_excel.iloc[row_idx, 2], right_format)
+            worksheet.write(row_idx + 1, 3, df_excel.iloc[row_idx, 3], left_format)
 
-        # Auto-ajuste de columnas adaptativo con un margen seguro (+5 de ancho) para evitar los símbolos '###'
         for col_num, col_name in enumerate(df_excel.columns):
             max_len = len(str(col_name))
             for val in df_excel[col_name]:
                 max_len = max(max_len, len(str(val)))
             worksheet.set_column(col_num, col_num, max_len + 5)
             
-        # Cuadro de resumen final de carga estilizado para la firma o aprobación del jefe
         start_row = len(df_excel) + 2
         worksheet.write(start_row, 1, "Patente Camión:", bold_label)
         worksheet.write(start_row, 2, patente_nom, bold_value)
@@ -376,7 +357,7 @@ if not st.session_state.tabla_carga.empty:
     
     st.write("") 
     
-    # Botón 2: Excel Premium con Descarga Directa Ultra Estable y Logotipo de Libro de Excel
+    # Botón 2: Excel con Descarga Directa Limpia
     data_excel = generar_excel(st.session_state.tabla_carga, patente_texto, total_bultos, total_kg)
     st.markdown('<div class="boton-excel-wsp">', unsafe_allow_html=True)
     st.download_button(
