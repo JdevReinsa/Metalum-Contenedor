@@ -127,6 +127,29 @@ def cargar_datos():
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
 
+# --- LÓGICA DE BORRADO EN CALLBACK DIRECTO (Soluciona el doble click de raíz) ---
+def ejecutar_borrado_directo():
+    folio_a_borrar = st.session_state.get("folio_a_borrar_input", "").strip()
+    if not folio_a_borrar:
+        st.session_state.mensaje_borrado = "❌ Error: Debes ingresar un número de Folio válido."
+        return
+
+    st.session_state.tabla_carga["Folio"] = st.session_state.tabla_carga["Folio"].astype(str)
+    if folio_a_borrar not in st.session_state.tabla_carga["Folio"].values:
+        st.session_state.mensaje_borrado = f"❌ Error: El Folio N° {folio_a_borrar} no existe en la carga actual."
+    else:
+        fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] == folio_a_borrar].iloc[0]
+        producto_borrado = fila_seleccionada["Producto"]
+        
+        # Filtrado inmediato
+        st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] != folio_a_borrar]
+        st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
+        
+        guardar_datos(st.session_state.tabla_carga)
+        st.session_state.mensaje_borrado = f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio/Código: {folio_a_borrar})"
+        # Limpieza inmediata de la caja de texto para evitar bucles raros
+        st.session_state["folio_a_borrar_input"] = ""
+
 # --- GENERAR EXCEL PROFESIONAL ---
 def generar_excel(df, patente_nom, total_b, total_k, total_p):
     output = io.BytesIO()
@@ -310,6 +333,9 @@ if st.session_state.estado_ultimo_fardo != "normal":
 
 st.divider()
 
+# Variable para rastrear la patente
+patente_texto = "NO REGISTRADA"
+
 # 5. MONITOREO EN TIEMPO REAL
 if not st.session_state.tabla_carga.empty:
     try:
@@ -348,6 +374,7 @@ if not st.session_state.tabla_carga.empty:
         st.write("### Detalle de la Carga Actual")
     with col_der:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
+        patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
     st.dataframe(
         st.session_state.tabla_carga, 
@@ -365,7 +392,6 @@ if not st.session_state.tabla_carga.empty:
 
     # REPORTES DE SALIDA
     st.write("### 📤 Reporte de Salida")
-    patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
@@ -404,60 +430,45 @@ if not st.session_state.tabla_carga.empty:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     st.markdown('</div>', unsafe_allow_html=True)
-    
     st.divider()
-    
-    # 7. SECCIÓN CORREGIR ERRORES
-    st.write("### 🛠️ Corregir Errores")
-    folio_a_borrar_raw = st.text_input(
-        "Digita el N° de Folio que deseas eliminar:", 
-        placeholder="Escribe el número de folio aquí..."
-    )
-    
-    folio_a_borrar = folio_a_borrar_raw.strip()
-        
-    st.markdown('<div class="boton-borrar">', unsafe_allow_html=True)
-    if not folio_a_borrar:
-        texto_boton = "🗑️ INGRESA UN FOLIO"
-    else:
-        texto_boton = f"🗑️ ELIMINAR FOLIO N° {folio_a_borrar}"
-        
-    if st.button(texto_boton):
-        if not folio_a_borrar:
-            st.error("❌ Error: Debes ingresar un número de Folio válido.")
-        else:
-            st.session_state.tabla_carga["Folio"] = st.session_state.tabla_carga["Folio"].astype(str)
-            if folio_a_borrar not in st.session_state.tabla_carga["Folio"].values:
-                st.error(f"❌ Error: El Folio N° {folio_a_borrar} no existe en la carga actual.")
-            else:
-                # 🛠️ CORRECCIÓN DIRECTA: Se eliminan intermediarios y corre de un solo golpe
-                fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] == folio_a_borrar].iloc[0]
-                producto_borrado = fila_seleccionada["Producto"]
-                
-                st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] != folio_a_borrar]
-                st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
-                
-                guardar_datos(st.session_state.tabla_carga)
-                st.session_state.mensaje_borrado = f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio/Código: {folio_a_borrar})"
-                
-                # Forzamos refresco directo limpio sin loops duplicados
-                st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    if st.session_state.mensaje_borrado:
-        st.info(st.session_state.mensaje_borrado)
-    
-    st.write("") 
-    
-    if st.button("⚠️ Reiniciar Todo (Camión Nuevo)"):
-        st.session_state.tabla_carga = pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
-        if os.path.exists(ARCHIVO_DATOS):
-            os.remove(ARCHIVO_DATOS)
-        st.session_state.estado_ultimo_fardo = "normal"
-        st.session_state.ultimo_folio_processed = 0
-        st.session_state.folio_intentado = 0
-        st.session_state.cantidad_pallets_processed = 0
-        st.session_state.mensaje_borrado = ""
-        st.rerun()
 else:
     st.info("El contenedor está vacío. Empieza a registrar los fardos arriba.")
+
+# --- 7. SECCIÓN CORREGIR ERRORES (FUERA DE CONDICIONALES PARA TRABAJAR EN 1 SOLO CLICK) ---
+st.write("### 🛠️ Corregir Errores")
+folio_a_borrar_raw = st.text_input(
+    "Digita el N° de Folio que deseas eliminar:", 
+    placeholder="Escribe el número de folio aquí...",
+    key="folio_a_borrar_input"
+)
+
+folio_a_borrar_limpio = folio_a_borrar_raw.strip()
+if not folio_a_borrar_limpio:
+    texto_boton = "🗑️ INGRESA UN FOLIO"
+else:
+    texto_boton = f"🗑️ ELIMINAR FOLIO N° {folio_a_borrar_limpio}"
+
+st.markdown('<div class="boton-borrar">', unsafe_allow_html=True)
+# Se ejecuta la lógica exactamente en el milisegundo del on_click, impidiendo el doble ciclo
+st.button(texto_boton, on_click=ejecutar_borrado_directo)
+st.markdown('</div>', unsafe_allow_html=True)
+
+if st.session_state.mensaje_borrado:
+    if "❌" in st.session_state.mensaje_borrado:
+        st.error(st.session_state.mensaje_borrado)
+    else:
+        st.success(st.session_state.mensaje_borrado)
+    st.session_state.mensaje_borrado = ""
+
+st.write("") 
+
+if st.button("⚠️ Reiniciar Todo (Camión Nuevo)"):
+    st.session_state.tabla_carga = pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
+    if os.path.exists(ARCHIVO_DATOS):
+        os.remove(ARCHIVO_DATOS)
+    st.session_state.estado_ultimo_fardo = "normal"
+    st.session_state.ultimo_folio_processed = 0
+    st.session_state.folio_intentado = 0
+    st.session_state.cantidad_pallets_processed = 0
+    st.session_state.mensaje_borrado = ""
+    st.rerun()
