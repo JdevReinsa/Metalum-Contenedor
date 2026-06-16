@@ -1,0 +1,17 @@
+{
+  "short_name": "Carga contenedor",
+  "name": "Metalum - Carga contenedor",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3066/3066514.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "background_color": "#1e3a8a",
+  "theme_color": "#1e3a8a",
+  "display": "standalone",
+  "orientation": "portrait"
+}
