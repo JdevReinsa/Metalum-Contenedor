@@ -40,10 +40,21 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; }
-    .boton-exito>div>button { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }
-    .boton-error>div>button { background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }
+    .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; font-weight: bold !important; }
     .boton-borrar>div>button { background-color: #555555 !important; color: white !important; height: 55px !important; }
+    
+    /* Estilos para textos de alertas al costado del botón */
+    .alerta-texto {
+        display: flex;
+        align-items: center;
+        height: 55px;
+        font-size: 15px;
+        font-weight: bold;
+        padding-left: 10px;
+        border-radius: 8px;
+    }
+    .alerta-exito { color: #2e7d32; }
+    .alerta-error { color: #d32f2f; }
     
     /* Estilo botón WhatsApp Texto */
     .boton-wsp>div>a {
@@ -85,8 +96,6 @@ st.subheader("Registro de Contenedor")
 st.divider()
 
 # --- INICIALIZACIÓN DE SESIÓN INDIVIDUAL ---
-# Al usar st.session_state, la tabla vive SOLO en el navegador de este celular específico.
-# Si otro operario abre la app, su tabla estará totalmente en blanco e independiente.
 columnas_correctas = ["Ítem", "Folio", "Peso (Kg)", "Producto"]
 
 if "tabla_carga" not in st.session_state:
@@ -169,28 +178,27 @@ with st.form(key="formulario_fardo", clear_on_submit=False):
     peso_raw = st.text_input("Peso (Kg):", placeholder="Escribe el peso...", max_chars=8, key=f"peso_{ctr}")
     folio_raw = st.text_input("Número de Folio:", placeholder="Escribe el folio...", max_chars=8, key=f"folio_{ctr}")
     
-    f_proc = st.session_state.ultimo_folio_processed
-    f_rep = st.session_state.folio_intentado
+    # Creamos dos columnas dentro del formulario para colocar el botón a la izquierda y el mensaje a la derecha
+    col_btn, col_msg = st.columns([5, 5])
     
-    # Manejo visual dinámico del botón según el estado
-    if st.session_state.estado_ultimo_fardo == "exito":
-        clase_boton = "boton-exito"
-        texto_boton = f"✅ ¡FARDO #{f_proc} SUBIDO! (Añadir otro)"
-    elif st.session_state.estado_ultimo_fardo == "error_duplicado":
-        clase_boton = "boton-error"
-        texto_boton = f"❌ ¡FOLIO #{f_rep} REPETIDO! ✖️"
-    elif st.session_state.estado_ultimo_fardo == "error_vacio":
-        clase_boton = "boton-error"
-        texto_boton = "❌ ERROR: ¡DATOS VACÍOS O INVÁLIDOS! ✖️"
-    else:
-        clase_boton = "boton-normal"
-        texto_boton = "➕ AGREGAR FARDO"
+    with col_btn:
+        st.markdown('<div class="boton-normal">', unsafe_allow_html=True)
+        boton_guardar = st.form_submit_button(label="➕ AGREGAR FARDO")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col_msg:
+        f_proc = st.session_state.ultimo_folio_processed
+        f_rep = st.session_state.folio_intentado
+        
+        # El mensaje se dibuja de forma paralela en la columna derecha al instante
+        if st.session_state.estado_ultimo_fardo == "exito":
+            st.markdown(f'<div class="alerta-texto alerta-exito">✅ ¡Fardo #{f_proc} Subido!</div>', unsafe_allow_html=True)
+        elif st.session_state.estado_ultimo_fardo == "error_duplicado":
+            st.markdown(f'<div class="alerta-texto alerta-error">❌ ¡Folio #{f_rep} Duplicado!</div>', unsafe_allow_html=True)
+        elif st.session_state.estado_ultimo_fardo == "error_vacio":
+            st.markdown('<div class="alerta-texto alerta-error">❌ ¡Datos Inválidos!</div>', unsafe_allow_html=True)
 
-    st.markdown(f'<div class="{clase_boton}">', unsafe_allow_html=True)
-    boton_guardar = st.form_submit_button(label=texto_boton)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-# 4. LÓGICA DE PROCESAMIENTO (CORREGIDA SIN TIMER REPETITIVO)
+# 4. LÓGICA DE PROCESAMIENTO (INMEDIATO)
 if boton_guardar:
     try:
         peso_val = int(peso_raw.strip()) if peso_raw else 0
@@ -202,7 +210,6 @@ if boton_guardar:
     st.session_state.folio_intentado = folio_val
     
     if peso_val > 0 and folio_val > 0:
-        # Validación de duplicados local en la sesión activa
         if not st.session_state.tabla_carga.empty:
             folios_existentes = st.session_state.tabla_carga["Folio"].astype(int).values
         else:
@@ -212,7 +219,6 @@ if boton_guardar:
             st.session_state.estado_ultimo_fardo = "error_duplicado"
             st.rerun()
         else:
-            # Registrar fardo exitosamente
             st.session_state.ultimo_folio_processed = folio_val
             siguiente_item = st.session_state.tabla_carga["Ítem"].max() + 1 if len(st.session_state.tabla_carga) > 0 else 1
             
@@ -231,7 +237,7 @@ if boton_guardar:
         st.session_state.estado_ultimo_fardo = "error_vacio"
         st.rerun()
 
-# Restablecer el estado visual del botón suavemente cuando el usuario interactúa o cambia algo
+# Restablece de forma transparente el mensaje si el operario vuelve a hacer clic en los textos sin haber enviado nada
 if st.session_state.estado_ultimo_fardo != "normal" and not boton_guardar:
     st.session_state.estado_ultimo_fardo = "normal"
 
