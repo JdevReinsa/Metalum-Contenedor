@@ -192,7 +192,6 @@ if "cantidad_pallets_processed" not in st.session_state:
     st.session_state.cantidad_pallets_processed = 0
 if "form_reset_counter" not in st.session_state:
     st.session_state.form_reset_counter = 0
-# Estado para guardar el mensaje del último elemento borrado sin perderlo en el rerun
 if "mensaje_borrado" not in st.session_state:
     st.session_state.mensaje_borrado = ""
 
@@ -368,8 +367,6 @@ if not st.session_state.tabla_carga.empty:
     st.write("### 📤 Reporte de Salida")
     patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
-    mensaje_wsp = f"Resume de Carga Camión: {patente_texto}\n"
-    mensaje_wsp = f"¼ Camion Patente: {patente_texto}\n"
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
     mensaje_wsp += f"----------------------------------------\n"
@@ -429,29 +426,24 @@ if not st.session_state.tabla_carga.empty:
         if not folio_a_borrar:
             st.error("❌ Error: Debes ingresar un número de Folio válido.")
         else:
-            # Comprobar si el folio existe en el dataframe actual
             st.session_state.tabla_carga["Folio"] = st.session_state.tabla_carga["Folio"].astype(str)
             if folio_a_borrar not in st.session_state.tabla_carga["Folio"].values:
                 st.error(f"❌ Error: El Folio N° {folio_a_borrar} no existe en la carga actual.")
             else:
-                # Obtener datos de la fila antes de borrarla para el informe
+                # 🛠️ CORRECCIÓN DIRECTA: Se eliminan intermediarios y corre de un solo golpe
                 fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] == folio_a_borrar].iloc[0]
                 producto_borrado = fila_seleccionada["Producto"]
                 
-                # Eliminar el registro de forma inmediata
                 st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] != folio_a_borrar]
-                # Reordenar los Ítems correlativos automáticamente
                 st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
                 
-                # Guardar directamente en la persistencia del archivo del dispositivo
                 guardar_datos(st.session_state.tabla_carga)
-                
-                # Guardar el mensaje del registro eliminado en el estado para mostrarlo abajo sin desaparecer
                 st.session_state.mensaje_borrado = f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio/Código: {folio_a_borrar})"
+                
+                # Forzamos refresco directo limpio sin loops duplicados
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
     
-    # Mostrar el informe del elemento borrado inmediatamente más abajo de forma fija
     if st.session_state.mensaje_borrado:
         st.info(st.session_state.mensaje_borrado)
     
