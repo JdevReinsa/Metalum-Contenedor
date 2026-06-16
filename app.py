@@ -158,7 +158,7 @@ def generar_excel(df, patente_nom, total_b, total_k):
         worksheet.write(start_row, 2, patente_nom, normal_label)
         
         worksheet.write(start_row + 1, 1, "Total Bultos:", bold_label)
-        worksheet.write(start_row + 2, 2, f"{total_b} fardos", normal_label)
+        worksheet.write(start_row + 1, 2, f"{total_b} fardos", normal_label)
         
         worksheet.write(start_row + 2, 1, "Peso Total:", bold_label)
         worksheet.write(start_row + 2, 2, f"{total_k:,} Kg", normal_label)
@@ -186,8 +186,10 @@ with st.form(key="formulario_fardo"):
     )
     
     ctr = st.session_state.form_reset_counter
-    peso_raw = st.text_input("Peso (Kg):", placeholder="Escribe el peso...", key=f"peso_{ctr}")
-    folio_raw = st.text_input("Número de Folio:", placeholder="Escribe el folio...", key=f"folio_{ctr}")
+    
+    # 🟢 SE AGREGA max_chars=8 PARA CONTROLAR EL MÁXIMO DE CARACTERES PERMITIDOS
+    peso_raw = st.text_input("Peso (Kg):", placeholder="Escribe el peso...", max_chars=8, key=f"peso_{ctr}")
+    folio_raw = st.text_input("Número de Folio:", placeholder="Escribe el folio...", max_chars=8, key=f"folio_{ctr}")
     
     f_proc = st.session_state.ultimo_folio_processed
     f_rep = st.session_state.folio_intentado
@@ -274,7 +276,6 @@ if not st.session_state.tabla_carga.empty:
     mostrar_producto = st.toggle("👁️ Mostrar columna Producto", value=False)
     columnas_visibles = ["Ítem", "Folio", "Peso (Kg)", "Producto"] if mostrar_producto else ["Ítem", "Folio", "Peso (Kg)"]
     
-    # 🟢 SOLUCIÓN AL ERROR OVERFLOW: No forzamos un index numérico manual, dejamos que renderice plano
     df_pantalla = st.session_state.tabla_carga[columnas_visibles]
     st.dataframe(df_pantalla, use_container_width=True, hide_index=True)
     
