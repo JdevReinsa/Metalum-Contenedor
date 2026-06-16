@@ -16,68 +16,36 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Inicializar estados para el tema interactivo y clics
-if "tema_oscuro" not in st.session_state:
-    st.session_state.tema_oscuro = True  # Por defecto inicia en oscuro
-
-if "contador_clicks_industria" not in st.session_state:
-    st.session_state.contador_clicks_industria = 0
-
-# --- CONFIGURACIÓN DEL COLOR GLOBAL (SIN TOCAR INPUTS NI CELDAS) ---
-if st.session_state.tema_oscuro:
-    css_color_global = """
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-        background-color: #0e1117 !important;
-        color: #ffffff !important;
-    }
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricLabel"] {
-        color: #ffffff !important;
-    }
-    """
-else:
-    css_color_global = """
-    html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
-        background-color: #ffffff !important;
-        color: #111827 !important;
-    }
-    h1, h2, h3, h4, h5, h6, p, label, .stMarkdown, [data-testid="stMetricLabel"] {
-        color: #111827 !important;
-    }
-    """
-
-# CSS Estructural de la aplicación
-st.markdown(f"""
+# Estilo CSS inyectado optimizado para limpiar la interfaz
+st.markdown("""
     <style>
-    {css_color_global}
-    
-    /* Quitar elementos nativos molestos de Streamlit */
-    [data-testid="stHeader"] {{
+    [data-testid="stHeader"] {
         visibility: hidden;
         height: 0% !important;
-    }}
-    [data-testid="viewerBadge"] {{
+    }
+    [data-testid="viewerBadge"] {
         visibility: hidden;
-    }}
-    [data-testid="stSidebarCollapse"] {{
+    }
+    [data-testid="stSidebarCollapse"] {
         display: none !important;
-    }}
+    }
     
     /* Estilo base para botones */
-    .stButton>button, .stDownloadButton>button {{
+    .stButton>button, .stDownloadButton>button {
         width: 100%;
         height: 55px;
         font-size: 16px;
         border-radius: 8px !important;
         transition: all 0.3s ease;
-    }}
+    }
     
-    .boton-normal>div>button {{ background-color: #1e3a8a !important; color: white !important; border: none !important; }}
-    .boton-exito>div>button {{ background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; border: none !important; }}
-    .boton-error>div>button {{ background-color: #d32f2f !important; color: white !important; font-weight: bold !important; border: none !important; }}
-    .boton-borrar>div>button {{ background-color: #4b5563 !important; color: white !important; height: 55px !important; border: none !important; }}
+    .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; }
+    .boton-exito>div>button { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }
+    .boton-error>div>button { background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }
+    .boton-borrar>div>button { background-color: #555555 !important; color: white !important; height: 55px !important; }
     
     /* Estilo botón WhatsApp Texto */
-    .boton-wsp>div>a {{
+    .boton-wsp>div>a {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -90,10 +58,10 @@ st.markdown(f"""
         text-decoration: none;
         border-radius: 8px;
         font-size: 18px;
-    }}
+    }
     
-    /* Estilo botón Excel Estable */
-    .boton-excel-wsp>div>button {{
+    /* Estilo botón Excel profesional */
+    .boton-excel-wsp>div>button {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -102,41 +70,16 @@ st.markdown(f"""
         color: white !important;
         font-weight: bold !important;
         font-size: 18px !important;
-        border: none !important;
-    }}
+    }
     
-    /* Capa invisible para detectar los clics sobre el emoji del título sin romper tamaños */
-    .contenedor-titulo {{
-        position: relative;
-        display: inline-block;
-    }}
-    .boton-secreto {{
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 50px;
-        height: 100%;
-        opacity: 0;
-        cursor: pointer;
-    }}
+    input {
+        height: 45px !important;
+        font-size: 16px !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CABECERA CON DETECTOR DE REGLA INVISIBLE ---
-# Colocamos un botón invisible de Streamlit justo encima del emoji original
-col1, col2 = st.columns([1, 10])
-with col1:
-    if st.button("", key="trigger_secreto", help="Cambiar Modo visual"):
-        st.session_state.contador_clicks_industria += 1
-        if st.session_state.contador_clicks_industria >= 3:
-            st.session_state.tema_oscuro = not st.session_state.tema_oscuro
-            st.session_state.contador_clicks_industria = 0
-            st.rerun()
-            
-    # El título se dibuja de forma normal con su emoji tal como te gustaba antes
-    st.markdown("<div style='position: absolute; top: -45px; left: 15px; pointer-events: none;'><h1>🏭</h1></div>", unsafe_allow_html=True)
-
-st.markdown("<h1 style='margin-top: -10px;'>METALUM</h1>", unsafe_allow_html=True)
+st.title("🏭 METALUM")
 st.subheader("Registro de Contenedor")
 st.divider()
 
@@ -158,7 +101,7 @@ def cargar_datos():
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
 
-# --- GENERAR EXCEL LIMPIO PARA IMPRESIÓN DE RESPALDO ---
+# --- GENERAR EXCEL PROFESIONAL PARA IMPRESIÓN ---
 def generar_excel(df, patente_nom, total_b, total_k):
     output = io.BytesIO()
     df_excel = df.copy()
@@ -169,49 +112,60 @@ def generar_excel(df, patente_nom, total_b, total_k):
         workbook  = writer.book
         worksheet = writer.sheets['Reporte Carga']
         
+        # Formato profesional para encabezados (Verde oscuro, texto blanco, alineado a la izquierda)
         header_format = workbook.add_format({
             'bold': True,
             'text_wrap': True,
+            'align': 'left',
             'valign': 'vcenter',
-            'align': 'center',
             'fg_color': '#107C41',
             'font_color': 'white',
             'border': 1
         })
         
-        center_format = workbook.add_format({'align': 'center', 'border': 1})
-        right_format = workbook.add_format({'align': 'right', 'border': 1, 'num_format': '#,##0'})
-        left_format = workbook.add_format({'align': 'left', 'border': 1})
+        # Formato de celdas: Todo estrictamente alineado a la izquierda con bordes para impresión limpia
+        cell_format = workbook.add_format({
+            'align': 'left',
+            'valign': 'vcenter',
+            'border': 1
+        })
         
-        bold_label = workbook.add_format({'bold': True, 'align': 'right'})
-        bold_value = workbook.add_format({'bold': True, 'align': 'left'})
+        # Formatos para los totales de abajo
+        bold_label = workbook.add_format({'bold': True, 'align': 'left'})
+        normal_label = workbook.add_format({'align': 'left'})
         
+        # Aplicar el formato a los encabezados
         for col_num, header in enumerate(df_excel.columns):
             worksheet.write(0, col_num, header, header_format)
             
+        # Reescribir los datos con la alineación a la izquierda y bordes requeridos
         for row_idx in range(len(df_excel)):
-            worksheet.write(row_idx + 1, 0, df_excel.iloc[row_idx, 0], center_format)
-            worksheet.write(row_idx + 1, 1, df_excel.iloc[row_idx, 1], center_format)
-            worksheet.write(row_idx + 1, 2, df_excel.iloc[row_idx, 2], right_format)
-            worksheet.write(row_idx + 1, 3, df_excel.iloc[row_idx, 3], left_format)
+            worksheet.write(row_idx + 1, 0, int(df_excel.iloc[row_idx, 0]), cell_format) # Ítem
+            worksheet.write(row_idx + 1, 1, int(df_excel.iloc[row_idx, 1]), cell_format) # Folio
+            worksheet.write(row_idx + 1, 2, int(df_excel.iloc[row_idx, 2]), cell_format) # Peso
+            worksheet.write(row_idx + 1, 3, str(df_excel.iloc[row_idx, 3]), cell_format) # Producto
 
+        # Auto-ajuste inteligente de columnas con alineación izquierda
         for col_num, col_name in enumerate(df_excel.columns):
             max_len = len(str(col_name))
             for val in df_excel[col_name]:
                 max_len = max(max_len, len(str(val)))
             worksheet.set_column(col_num, col_num, max_len + 5)
             
+        # Resumen final al final de las filas
         start_row = len(df_excel) + 2
         worksheet.write(start_row, 1, "Patente Camión:", bold_label)
-        worksheet.write(start_row, 2, patente_nom, bold_value)
+        worksheet.write(start_row, 2, patente_nom, normal_label)
+        
         worksheet.write(start_row + 1, 1, "Total Bultos:", bold_label)
-        worksheet.write(start_row + 1, 2, f"{total_b} fardos", bold_value)
+        worksheet.write(start_row + 1, 2, f"{total_b} fardos", normal_label)
+        
         worksheet.write(start_row + 2, 1, "Peso Total:", bold_label)
-        worksheet.write(start_row + 2, 2, f"{total_k:,} Kg", bold_value)
+        worksheet.write(start_row + 2, 2, f"{total_k:,} Kg", normal_label)
         
     return output.getvalue()
 
-# Inicializar Estados de la tabla
+# Inicializar Estados
 if "tabla_carga" not in st.session_state:
     st.session_state.tabla_carga = cargar_datos()
 if "estado_ultimo_fardo" not in st.session_state:
@@ -350,18 +304,18 @@ if not st.session_state.tabla_carga.empty:
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.69-4.936c-.202-.101-1.202-.594-1.392-.661-.19-.068-.33-.101-.47.101-.14.202-.54.661-.661.8-.12.138-.24.154-.442.053-1.648-.826-2.617-1.963-3.064-2.731-.12-.207-.013-.319.09-.421.093-.092.202-.24.302-.36.101-.12.135-.2.203-.34.067-.137.034-.257-.017-.359-.051-.101-.47-1.136-.645-1.545-.171-.413-.344-.358-.47-.364-.121-.006-.26-.006-.4-.006-.14 0-.368.053-.56.26-.191.207-.73.714-.73 1.74s.747 2.009.85 2.147c.101.137 1.47 2.246 3.562 3.149.497.215.885.342 1.184.438.5.158.955.135 1.314.08.4-.061 1.202-.493 1.37-.967.169-.473.169-.88.119-.967-.051-.088-.18-.137-.383-.238"/>
                 </svg>
-                COMPARTIR
+                COMPARTIR REPORTE TEXTO
             </a>
         </div>
     """, unsafe_allow_html=True)
     
     st.write("") 
     
-    # Botón 2: Excel con Descarga Directa Limpia
+    # Botón 2: Excel con Descarga Directa y Limpia (SÓLO DESCARGA)
     data_excel = generar_excel(st.session_state.tabla_carga, patente_texto, total_bultos, total_kg)
     st.markdown('<div class="boton-excel-wsp">', unsafe_allow_html=True)
     st.download_button(
-        label="📊 COMPARTIR",  
+        label="📊 DESCARGAR EXCEL",  
         data=data_excel,
         file_name=f"Reporte_Metalum_{patente_texto}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
