@@ -89,8 +89,8 @@ def cargar_datos():
     if os.path.exists(ARCHIVO_DATOS):
         try:
             df = pd.read_csv(ARCHIVO_DATOS)
-            df["Peso (Kg)"] = df["Peso (Kg)"].astype(int)
-            df["Folio"] = df["Folio"].astype(int)
+            df["Peso (Kg)"] = pd.to_numeric(df["Peso (Kg)"], errors='coerce').fillna(0).astype(int)
+            df["Folio"] = pd.to_numeric(df["Folio"], errors='coerce').fillna(0).astype(int)
             df = df.reindex(columns=columnas_correctas)
             return df
         except Exception:
@@ -158,7 +158,7 @@ def generar_excel(df, patente_nom, total_b, total_k):
         worksheet.write(start_row, 2, patente_nom, normal_label)
         
         worksheet.write(start_row + 1, 1, "Total Bultos:", bold_label)
-        worksheet.write(start_row + 1, 2, f"{total_b} fardos", normal_label)
+        worksheet.write(start_row + 2, 2, f"{total_b} fardos", normal_label)
         
         worksheet.write(start_row + 2, 1, "Peso Total:", bold_label)
         worksheet.write(start_row + 2, 2, f"{total_k:,} Kg", normal_label)
@@ -272,10 +272,11 @@ if not st.session_state.tabla_carga.empty:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
     
     mostrar_producto = st.toggle("👁️ Mostrar columna Producto", value=False)
-    columnas_visibles = ["Folio", "Peso (Kg)", "Producto"] if mostrar_producto else ["Folio", "Peso (Kg)"]
+    columnas_visibles = ["Ítem", "Folio", "Peso (Kg)", "Producto"] if mostrar_producto else ["Ítem", "Folio", "Peso (Kg)"]
     
-    df_pantalla = st.session_state.tabla_carga[["Ítem"] + columnas_visibles].set_index("Ítem")
-    st.dataframe(df_pantalla, use_container_width=True, column_order=columnas_visibles)
+    # 🟢 SOLUCIÓN AL ERROR OVERFLOW: No forzamos un index numérico manual, dejamos que renderice plano
+    df_pantalla = st.session_state.tabla_carga[columnas_visibles]
+    st.dataframe(df_pantalla, use_container_width=True, hide_index=True)
     
     st.divider()
 
