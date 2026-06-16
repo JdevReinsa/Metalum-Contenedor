@@ -4,9 +4,7 @@ import time
 import urllib.parse
 import os
 import io
-
-# Nombre del archivo donde se guardará la información de forma permanente
-ARCHIVO_DATOS = "registro_fardos_metalum.csv"
+import uuid # <-- Librería para generar identificadores únicos por dispositivo
 
 # 1. Configuración de la página
 st.set_page_config(
@@ -15,6 +13,13 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed"
 )
+
+# Inicializar un ID de sesión único por pestaña/dispositivo si no existe
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())[:8] # Código único de 8 caracteres
+
+# El nombre del archivo ahora es DINÁMICO y privado para cada dispositivo conectado
+ARCHIVO_DATOS = f"registro_fardos_{st.session_state.session_id}.csv"
 
 # 📱 CONEXIÓN CON EL MANIFEST PARA EL ACCESO DIRECTO MÓVIL
 st.markdown('<link rel="manifest" href="./manifest.json">', unsafe_allow_html=True)
@@ -93,6 +98,8 @@ st.markdown("""
 
 st.title("🏭 METALUM")
 st.subheader("Registro de Contenedor")
+# Muestra sutilmente el identificador de sesión para que sepa que está protegido de forma independiente
+st.caption(f"🔒 Sesión privada activa: Device-{st.session_state.session_id}")
 st.divider()
 
 # --- CARGAR DATOS ---
@@ -308,17 +315,14 @@ st.divider()
 # 5. MONITOREO EN TIEMPO REAL (ZONA SEGURA ANTICAÍDAS)
 if not st.session_state.tabla_carga.empty:
     
-    # 🛡️ CAPA DE PROTECCIÓN ABSOLUTA: Si el cálculo matemático falla por números gigantes, la app no muere
     try:
         df_fardos = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] != "Pallets"]
         df_pallets = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] == "Pallets"]
         
-        # Conversión forzada limpia de la columna Peso para evitar el TypeError original
         pesos_numericos = pd.to_numeric(df_fardos["Peso (Kg)"], errors='coerce').fillna(0)
         total_kg = int(pesos_numericos.sum())
         total_bultos = len(df_fardos)
         
-        # Calcular unidades de pallets de forma blindada
         total_pallets_unidades = 0
         for _, fila in df_pallets.iterrows():
             partes = str(fila["Folio"]).split("-")
@@ -328,7 +332,6 @@ if not st.session_state.tabla_carga.empty:
                 except ValueError:
                     pass
     except Exception:
-        # Respaldo de emergencia en caso de un desborde matemático inesperado (Los datos siguen vivos en el CSV)
         total_kg = 0
         total_bultos = 0
         total_pallets_unidades = 0
@@ -350,18 +353,13 @@ if not st.session_state.tabla_carga.empty:
     with col_der:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
     
-    # 🛠️ SOLUCIÓN 1: Eliminación total del Index nativo en la configuración de columnas
-    # 🛠️ SOLUCIÓN 2: Autoajuste elástico con Scroll Horizontal activado en el CSS para números grandes
+    # 🛠️ RETORNO DEL OJO NATIVO INTERACTIVO COMPLETO:
+    # Se eliminaron las restricciones duras de 'column_config' para forzar a Streamlit a restaurar el menú 
+    # flotante (el Ojo de visualización de la esquina superior derecha), manteniendo de forma fija el 'hide_index=True'.
     st.dataframe(
         st.session_state.tabla_carga, 
         use_container_width=True, 
-        hide_index=True, # <-- Oculta de raíz el índice para evitar que se active con el ojo
-        column_config={
-            "Ítem": st.column_config.Column(required=True, help="Número correlativo único"),
-            "Folio": st.column_config.Column(required=True),
-            "Peso (Kg)": st.column_config.Column(required=True),
-            "Producto": st.column_config.Column(required=True)
-        }
+        hide_index=True
     )
     
     st.divider()
@@ -436,12 +434,10 @@ if not st.session_state.tabla_carga.empty:
             if item_a_borrar not in items_existentes:
                 st.error(f"❌ Error: El Ítem N° {item_a_borrar} no existe en la carga actual.")
             else:
-                # Extraer información antes de borrar
                 fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] == item_a_borrar].iloc[0]
                 folio_borrado = fila_seleccionada["Folio"]
                 producto_borrado = fila_seleccionada["Producto"]
                 
-                # Ejecutar borrado y reindexar ítems de forma segura
                 st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] != item_a_borrar]
                 st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
                 
