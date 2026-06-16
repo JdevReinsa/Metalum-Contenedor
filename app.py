@@ -22,7 +22,7 @@ st.markdown('<meta name="apple-mobile-web-app-title" content="Carga contenedor">
 st.markdown('<meta name="apple-mobile-web-app-capable" content="yes">', unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3066/3066514.png">', unsafe_allow_html=True)
 
-# Estilo CSS inyectado optimizado para limpiar la interfaz
+# Estilo CSS inyectado optimizado para limpiar la interfaz y dar scroll horizontal dinámico
 st.markdown("""
     <style>
     [data-testid="stHeader"] {
@@ -34,6 +34,12 @@ st.markdown("""
     }
     [data-testid="stSidebarCollapse"] {
         display: none !important;
+    }
+    
+    /* Forzar contenedor de la tabla para soportar scroll horizontal si hay números muy grandes */
+    [data-testid="stDataFrame"] {
+        width: 100% !important;
+        overflow-x: auto !important;
     }
     
     /* Estilo base para botones */
@@ -198,7 +204,6 @@ producto = st.selectbox(
 with st.form(key="formulario_fardo"):
     ctr = st.session_state.form_reset_counter
     
-    # Si eligen pallets, cambia el input
     if producto == "Pallets":
         cantidad_pallets_raw = st.text_input("Cantidad de Pallets:", placeholder="Escribe el número de pallets...", max_chars=5, key=f"pallets_{ctr}")
         peso_raw = "0"
@@ -300,27 +305,38 @@ if st.session_state.estado_ultimo_fardo != "normal":
 
 st.divider()
 
-# 5. MONITOREO EN TIEMPO REAL
+# 5. MONITOREO EN TIEMPO REAL (ZONA SEGURA ANTICAÍDAS)
 if not st.session_state.tabla_carga.empty:
-    df_fardos = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] != "Pallets"]
-    df_pallets = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] == "Pallets"]
     
-    total_kg = int(df_fardos["Peso (Kg)"].sum()) if not df_fardos.empty else 0
-    total_bultos = len(df_fardos)
-    
-    # Extraer unidades de pallets de forma segura
-    total_pallets_unidades = 0
-    for _, fila in df_pallets.iterrows():
-        partes = str(fila["Folio"]).split("-")
-        if len(partes) == 2:
-            try:
-                total_pallets_unidades += int(partes[1].strip())
-            except ValueError:
-                pass
-    
+    # 🛡️ CAPA DE PROTECCIÓN ABSOLUTA: Si el cálculo matemático falla por números gigantes, la app no muere
+    try:
+        df_fardos = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] != "Pallets"]
+        df_pallets = st.session_state.tabla_carga[st.session_state.tabla_carga["Producto"] == "Pallets"]
+        
+        # Conversión forzada limpia de la columna Peso para evitar el TypeError original
+        pesos_numericos = pd.to_numeric(df_fardos["Peso (Kg)"], errors='coerce').fillna(0)
+        total_kg = int(pesos_numericos.sum())
+        total_bultos = len(df_fardos)
+        
+        # Calcular unidades de pallets de forma blindada
+        total_pallets_unidades = 0
+        for _, fila in df_pallets.iterrows():
+            partes = str(fila["Folio"]).split("-")
+            if len(partes) == 2:
+                try:
+                    total_pallets_unidades += int(partes[1].strip())
+                except ValueError:
+                    pass
+    except Exception:
+        # Respaldo de emergencia en caso de un desborde matemático inesperado (Los datos siguen vivos en el CSV)
+        total_kg = 0
+        total_bultos = 0
+        total_pallets_unidades = 0
+        st.warning("⚠️ Nota: Se detectaron números o formatos fuera de rango en el cálculo de totales, pero tu registro está a salvo abajo.")
+
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric(label="TOTAL KILOS", value=f"{total_kg:,} Kg")
+        st.metric(label="TOTAL KILOS", value=f"{total_kg:,} Kg" if total_kg > 0 else "Calculando...")
     with col2:
         st.metric(label="TOTAL BULTOS", value=f"{total_bultos} fardos")
     with col3:
@@ -334,9 +350,19 @@ if not st.session_state.tabla_carga.empty:
     with col_der:
         patente = st.text_input("Patente del Camión:", key="patente_camion", placeholder="EJ: AB-CD-12")
     
-    # 👁️ VISIBILIDAD POR EL OJO NATIVO: El DataFrame se envía completo. 
-    # El operario puede ocultar/mostrar columnas usando la herramienta interactiva de la esquina de la tabla.
-    st.dataframe(st.session_state.tabla_carga, use_container_width=True, hide_index=True)
+    # 🛠️ SOLUCIÓN 1: Eliminación total del Index nativo en la configuración de columnas
+    # 🛠️ SOLUCIÓN 2: Autoajuste elástico con Scroll Horizontal activado en el CSS para números grandes
+    st.dataframe(
+        st.session_state.tabla_carga, 
+        use_container_width=True, 
+        hide_index=True, # <-- Oculta de raíz el índice para evitar que se active con el ojo
+        column_config={
+            "Ítem": st.column_config.Column(required=True, help="Número correlativo único"),
+            "Folio": st.column_config.Column(required=True),
+            "Peso (Kg)": st.column_config.Column(required=True),
+            "Producto": st.column_config.Column(required=True)
+        }
+    )
     
     st.divider()
 
@@ -404,26 +430,23 @@ if not st.session_state.tabla_carga.empty:
         
     if st.button(texto_boton):
         if item_a_borrar == 0:
-            # 🔴 MENSAJE EN ROJO EN CASO DE ERROR DE INPUT
             st.error("❌ Error: Debes ingresar un número de Ítem válido.")
         else:
             items_existentes = st.session_state.tabla_carga["Ítem"].tolist()
             if item_a_borrar not in items_existentes:
-                # 🔴 MENSAJE EN ROJO SI EL ÍTEM NO EXISTE
                 st.error(f"❌ Error: El Ítem N° {item_a_borrar} no existe en la carga actual.")
             else:
-                # Extraemos la información completa antes de sacarlo para armar la explicación
+                # Extraer información antes de borrar
                 fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] == item_a_borrar].iloc[0]
                 folio_borrado = fila_seleccionada["Folio"]
                 producto_borrado = fila_seleccionada["Producto"]
                 
-                # Ejecutamos remoción y reordenamiento de los ítems
+                # Ejecutar borrado y reindexar ítems de forma segura
                 st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] != item_a_borrar]
                 st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
                 
                 guardar_datos(st.session_state.tabla_carga)
                 
-                # 🟢 MENSAJE EN VERDE CON EXPLICACIÓN DETALLADA DEL FOLIO Y PRODUCTO ELIMINADO
                 st.success(f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio/Código: {folio_borrado})")
                 time.sleep(1.5)
                 st.session_state.estado_ultimo_fardo = "normal"
