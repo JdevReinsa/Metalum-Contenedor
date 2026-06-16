@@ -44,7 +44,7 @@ st.markdown("""
     .boton-error>div>button { background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }
     .boton-borrar>div>button { background-color: #555555 !important; color: white !important; height: 55px !important; }
     
-    /* Estilo botón WhatsApp */
+    /* Estilo botón WhatsApp Texto */
     .boton-wsp>div>a {
         display: flex;
         align-items: center;
@@ -60,7 +60,7 @@ st.markdown("""
         font-size: 18px;
     }
     
-    /* Estilo botón Excel con Logo oficial incorporado */
+    /* Estilo botón Excel con descarga y link */
     .boton-excel-wsp>div>button {
         display: flex !important;
         align-items: center !important;
@@ -101,7 +101,7 @@ def cargar_datos():
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
 
-# --- GENERAR EXCEL EXACTO PARA IMPRESIÓN ---
+# --- GENERAR EXCEL CON AUTO-AJUSTE DE COLUMNAS ---
 def generar_excel(df, patente_nom, total_b, total_k):
     output = io.BytesIO()
     df_excel = df.copy()
@@ -113,6 +113,16 @@ def generar_excel(df, patente_nom, total_b, total_k):
         worksheet = writer.sheets['Reporte Carga']
         bold = workbook.add_format({'bold': True})
         
+        # 🟢 CAMBIO: Lógica de auto-ajuste de ancho de columnas según el tamaño de los números/datos
+        for col_num, col_name in enumerate(df_excel.columns):
+            # Mide la longitud del encabezado
+            max_len = len(str(col_name))
+            # Mide la longitud del dato más largo en esa columna
+            for val in df_excel[col_name]:
+                max_len = max(max_len, len(str(val)))
+            # Aplica el ancho calculado con un margen de seguridad de 4 espacios
+            worksheet.set_column(col_num, col_num, max_len + 4)
+            
         row_idx = len(df_excel) + 2
         worksheet.write(row_idx, 1, "Patente Camión:", bold)
         worksheet.write(row_idx, 2, patente_nom)
@@ -134,6 +144,8 @@ if "folio_intentado" not in st.session_state:
     st.session_state.folio_intentado = 0
 if "form_reset_counter" not in st.session_state:
     st.session_state.form_reset_counter = 0
+if "redirigir_wsp_excel" not in st.session_state:
+    st.session_state.redirigir_wsp_excel = False
 
 # 3. FORMULARIO DE CARGA
 with st.form(key="formulario_fardo"):
@@ -144,8 +156,6 @@ with st.form(key="formulario_fardo"):
     )
     
     ctr = st.session_state.form_reset_counter
-    
-    # CAMBIO: Se usa text_input para eliminar los molestos botones +/- y los textos de "Press Enter"
     peso_raw = st.text_input("Peso (Kg):", placeholder="Escribe el peso...", key=f"peso_{ctr}")
     folio_raw = st.text_input("Número de Folio:", placeholder="Escribe el folio...", key=f"folio_{ctr}")
     
@@ -171,7 +181,6 @@ with st.form(key="formulario_fardo"):
 
 # 4. LÓGICA DE PROCESAMIENTO
 if boton_guardar:
-    # Intentar convertir los textos limpios en números enteros de forma segura
     try:
         peso_val = int(peso_raw.strip()) if peso_raw else 0
         folio_val = int(folio_raw.strip()) if folio_raw else 0
@@ -244,7 +253,7 @@ if not st.session_state.tabla_carga.empty:
     st.write("### 📤 Reporte de Salida")
     patente_texto = patente.strip().upper() if patente.strip() != "" else "NO REGISTRADA"
     
-    # Mensaje de WhatsApp Texto
+    # --- CONFIGURACIÓN MENSAJE TEXTO WHATSAPP ---
     mensaje_wsp = f"🚛 *REPORTE DE CARGA - METALUM*\n"
     mensaje_wsp += f"🔹 *Patente:* {patente_texto}\n"
     mensaje_wsp += f"----------------------------------------\n"
@@ -258,7 +267,7 @@ if not st.session_state.tabla_carga.empty:
     texto_codificado = urllib.parse.quote(mensaje_wsp)
     enlace_whatsapp = f"https://api.whatsapp.com/send?text={texto_codificado}"
     
-    # Botón WhatsApp - Texto "COMPARTIR"
+    # Botón 1: WhatsApp Texto
     st.markdown(f"""
         <div class="boton-wsp">
             <a href="{enlace_whatsapp}" target="_blank">
@@ -272,17 +281,35 @@ if not st.session_state.tabla_carga.empty:
     
     st.write("") 
     
-    # CAMBIO: Botón de Excel idéntico al de arriba con logo oficial del libro de Excel y texto "COMPARTIR"
+    # --- CONFIGURACIÓN ENLACE ADICIONAL EXCEL ---
+    mensaje_excel = f"📊 *REPORTE EXCEL - METALUM*\n"
+    mensaje_excel += f"Aquí tienes el archivo Excel listo para revisión o impresión.\n"
+    mensaje_excel += f"🚚 *Camión Patente:* {patente_texto}"
+    texto_excel_codificado = urllib.parse.quote(mensaje_excel)
+    enlace_excel_whatsapp = f"https://api.whatsapp.com/send?text={texto_excel_codificado}"
+    
+    # Botón 2: Excel Inteligente (Descarga + Activa aviso de redirección)
     data_excel = generar_excel(st.session_state.tabla_carga, patente_texto, total_bultos, total_kg)
     st.markdown('<div class="boton-excel-wsp">', unsafe_allow_html=True)
-    st.download_button(
-        label="📊 COMPARTIR",  # Texto unificado solicitado
+    
+    click_excel = st.download_button(
+        label="📊 COMPARTIR",  
         data=data_excel,
         file_name=f"Reporte_Metalum_{patente_texto}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     st.markdown('</div>', unsafe_allow_html=True)
     
+    # Si se pulsa el botón de Excel, dejamos guardado el estado para abrir WhatsApp en el siguiente ciclo
+    if click_excel:
+        st.session_state.redirigir_wsp_excel = True
+        st.rerun()
+        
+    if st.session_state.redirigir_wsp_excel:
+        st.session_state.redirigir_wsp_excel = False
+        # Inyecta un script rápido para abrir de inmediato la ventana de chat mientras el archivo ya está en las descargas del teléfono
+        st.markdown(f'<meta http-equiv="refresh" content="0;URL={enlace_excel_whatsapp}">', unsafe_allow_html=True)
+
     st.divider()
     
     # Sección para corregir errores
