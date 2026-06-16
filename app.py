@@ -1,29 +1,23 @@
 import streamlit as st
 import pandas as pd
-import time
 import urllib.parse
-import os
 import io
-
-# Nombre del archivo donde se guardará la información de forma permanente
-ARCHIVO_DATOS = "registro_fardos_metalum.csv"
 
 # 1. Configuración de la página
 st.set_page_config(
-    page_title="Carga contenedor", # <-- Nombre profesional en la pestaña del navegador
-    page_icon="🚛", 
+    page_title="Carga contenedor",
+    page_icon="🚛",
     layout="centered",
     initial_sidebar_state="collapsed"
 )
 
-# 📱 CONEXIÓN CON EL MANIFEST PARA EL ACCESO DIRECTO MÓVIL
+# 📱 CONFIGURACIÓN PARA ACCESO DIRECTO MÓVIL
 st.markdown('<link rel="manifest" href="./manifest.json">', unsafe_allow_html=True)
-# Configuración extra para iPhones (iOS)
 st.markdown('<meta name="apple-mobile-web-app-title" content="Carga contenedor">', unsafe_allow_html=True)
 st.markdown('<meta name="apple-mobile-web-app-capable" content="yes">', unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3066/3066514.png">', unsafe_allow_html=True)
 
-# Estilo CSS inyectado optimizado para limpiar la interfaz
+# Estilo CSS inyectado para limpiar la interfaz
 st.markdown("""
     <style>
     [data-testid="stHeader"] {
@@ -90,23 +84,21 @@ st.title("🏭 METALUM")
 st.subheader("Registro de Contenedor")
 st.divider()
 
-# --- CARGAR DATOS ---
-def cargar_datos():
-    columnas_correctas = ["Ítem", "Folio", "Peso (Kg)", "Producto"]
-    if os.path.exists(ARCHIVO_DATOS):
-        try:
-            df = pd.read_csv(ARCHIVO_DATOS)
-            df["Peso (Kg)"] = pd.to_numeric(df["Peso (Kg)"], errors='coerce').fillna(0).astype(int)
-            df["Folio"] = pd.to_numeric(df["Folio"], errors='coerce').fillna(0).astype(int)
-            df = df.reindex(columns=columnas_correctas)
-            return df
-        except Exception:
-            return pd.DataFrame(columns=columnas_correctas)
-    return pd.DataFrame(columns=columnas_correctas)
+# --- INICIALIZACIÓN DE SESIÓN INDIVIDUAL ---
+# Al usar st.session_state, la tabla vive SOLO en el navegador de este celular específico.
+# Si otro operario abre la app, su tabla estará totalmente en blanco e independiente.
+columnas_correctas = ["Ítem", "Folio", "Peso (Kg)", "Producto"]
 
-# --- GUARDAR DATOS ---
-def guardar_datos(df):
-    df.to_csv(ARCHIVO_DATOS, index=False)
+if "tabla_carga" not in st.session_state:
+    st.session_state.tabla_carga = pd.DataFrame(columns=columnas_correctas)
+if "estado_ultimo_fardo" not in st.session_state:
+    st.session_state.estado_ultimo_fardo = "normal"
+if "ultimo_folio_processed" not in st.session_state:
+    st.session_state.ultimo_folio_processed = 0
+if "folio_intentado" not in st.session_state:
+    st.session_state.folio_intentado = 0
+if "form_reset_counter" not in st.session_state:
+    st.session_state.form_reset_counter = 0
 
 # --- GENERAR EXCEL PROFESIONAL PARA IMPRESIÓN ---
 def generar_excel(df, patente_nom, total_b, total_k):
@@ -165,20 +157,8 @@ def generar_excel(df, patente_nom, total_b, total_k):
         
     return output.getvalue()
 
-# Inicializar Estados
-if "tabla_carga" not in st.session_state:
-    st.session_state.tabla_carga = cargar_datos()
-if "estado_ultimo_fardo" not in st.session_state:
-    st.session_state.estado_ultimo_fardo = "normal"
-if "ultimo_folio_processed" not in st.session_state:
-    st.session_state.ultimo_folio_processed = 0
-if "folio_intentado" not in st.session_state:
-    st.session_state.folio_intentado = 0
-if "form_reset_counter" not in st.session_state:
-    st.session_state.form_reset_counter = 0
-
 # 3. FORMULARIO DE CARGA
-with st.form(key="formulario_fardo"):
+with st.form(key="formulario_fardo", clear_on_submit=False):
     producto = st.selectbox(
         "Selecciona el Producto:",
         ["UBC", "Perfil", "Tense", "Taint Tabor", "Radiador", "Acero", "Offset"],
@@ -192,9 +172,10 @@ with st.form(key="formulario_fardo"):
     f_proc = st.session_state.ultimo_folio_processed
     f_rep = st.session_state.folio_intentado
     
+    # Manejo visual dinámico del botón según el estado
     if st.session_state.estado_ultimo_fardo == "exito":
         clase_boton = "boton-exito"
-        texto_boton = f"✅ ¡FARDO #{f_proc} SUBIDO! (ENTER)"
+        texto_boton = f"✅ ¡FARDO #{f_proc} SUBIDO! (Añadir otro)"
     elif st.session_state.estado_ultimo_fardo == "error_duplicado":
         clase_boton = "boton-error"
         texto_boton = f"❌ ¡FOLIO #{f_rep} REPETIDO! ✖️"
@@ -209,7 +190,7 @@ with st.form(key="formulario_fardo"):
     boton_guardar = st.form_submit_button(label=texto_boton)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# 4. LÓGICA DE PROCESAMIENTO
+# 4. LÓGICA DE PROCESAMIENTO (CORREGIDA SIN TIMER REPETITIVO)
 if boton_guardar:
     try:
         peso_val = int(peso_raw.strip()) if peso_raw else 0
@@ -221,23 +202,28 @@ if boton_guardar:
     st.session_state.folio_intentado = folio_val
     
     if peso_val > 0 and folio_val > 0:
-        folios_existentes = st.session_state.tabla_carga["Folio"].astype(int).values
+        # Validación de duplicados local en la sesión activa
+        if not st.session_state.tabla_carga.empty:
+            folios_existentes = st.session_state.tabla_carga["Folio"].astype(int).values
+        else:
+            folios_existentes = []
+            
         if folio_val in folios_existentes:
             st.session_state.estado_ultimo_fardo = "error_duplicado"
             st.rerun()
         else:
+            # Registrar fardo exitosamente
             st.session_state.ultimo_folio_processed = folio_val
             siguiente_item = st.session_state.tabla_carga["Ítem"].max() + 1 if len(st.session_state.tabla_carga) > 0 else 1
             
             nueva_fila = pd.DataFrame([{
                 "Ítem": int(siguiente_item),
-                "Folio": folio_val,
-                "Peso (Kg)": peso_val,
+                "Folio": int(folio_val),
+                "Peso (Kg)": int(peso_val),
                 "Producto": producto
             }])
             
             st.session_state.tabla_carga = pd.concat([st.session_state.tabla_carga, nueva_fila], ignore_index=True)
-            guardar_datos(st.session_state.tabla_carga)
             st.session_state.form_reset_counter += 1
             st.session_state.estado_ultimo_fardo = "exito"
             st.rerun()
@@ -245,10 +231,9 @@ if boton_guardar:
         st.session_state.estado_ultimo_fardo = "error_vacio"
         st.rerun()
 
-if st.session_state.estado_ultimo_fardo != "normal":
-    time.sleep(1.2)
+# Restablecer el estado visual del botón suavemente cuando el usuario interactúa o cambia algo
+if st.session_state.estado_ultimo_fardo != "normal" and not boton_guardar:
     st.session_state.estado_ultimo_fardo = "normal"
-    st.rerun()
 
 st.divider()
 
@@ -335,11 +320,11 @@ if not st.session_state.tabla_carga.empty:
         
     st.markdown('<div class="boton-borrar">', unsafe_allow_html=True)
     if item_a_borrar == 0:
-        texto_boton = "🗑️ INGRESA UN ÍTEM"
+        texto_boton_borrar = "🗑️ INGRESA UN ÍTEM"
     else:
-        texto_boton = f"🗑️ ELIMINAR ÍTEM N° {item_a_borrar}"
+        texto_boton_borrar = f"🗑️ ELIMINAR ÍTEM N° {item_a_borrar}"
         
-    if st.button(texto_boton):
+    if st.button(texto_boton_borrar):
         if item_a_borrar == 0:
             st.error("Debes ingresar un número de Ítem válido.")
         else:
@@ -349,20 +334,14 @@ if not st.session_state.tabla_carga.empty:
             else:
                 st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Ítem"] != item_a_borrar]
                 st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
-                
-                guardar_datos(st.session_state.tabla_carga)
                 st.success(f"¡Ítem N° {item_a_borrar} eliminado con éxito!")
-                time.sleep(1)
-                st.session_state.estado_ultimo_fardo = "normal"
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
     
     st.write("") 
     
     if st.button("⚠️ Reiniciar Todo (Camión Nuevo)"):
-        st.session_state.tabla_carga = pd.DataFrame(columns=["Ítem", "Folio", "Peso (Kg)", "Producto"])
-        if os.path.exists(ARCHIVO_DATOS):
-            os.remove(ARCHIVO_DATOS)
+        st.session_state.tabla_carga = pd.DataFrame(columns=columnas_correctas)
         st.session_state.estado_ultimo_fardo = "normal"
         st.session_state.ultimo_folio_processed = 0
         st.session_state.folio_intentado = 0
