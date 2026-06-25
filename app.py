@@ -42,9 +42,10 @@ st.markdown('<meta name="apple-mobile-web-app-title" content="Carga contenedor">
 st.markdown('<meta name="apple-mobile-web-app-capable" content="yes">', unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3066/3066514.png">', unsafe_allow_html=True)
 
-# 🎨 VARIABLES DE COLOR CORREGIDAS PARA MODO OSCURO ESTRICTO
+# 🎨 VARIABLES DE COLOR CORREGIDAS CON SELECTORES ESTRICTOS DE FORMULARIOS e INPUTS
 if st.session_state.tema_oscuro:
     variables_color = """
+    /* Fondo general de la aplicación */
     .stApp {
         background-color: #0e1117 !important;
         color: #ffffff !important;
@@ -52,13 +53,24 @@ if st.session_state.tema_oscuro:
     p, h1, h2, h3, h4, h5, h6, span, label, small {
         color: #ffffff !important;
     }
-    /* Inputs con fondo negro y texto blanco */
-    .stTextInput input, .stSelectbox div[data-baseweb="select"] {
+    
+    /* INPUTS Y SELECTORES COMPLETAMENTE NEGROS CON TEXTO BLANCO */
+    .stTextInput input, 
+    .stSelectbox div[data-baseweb="select"],
+    div[data-baseweb="select"] {
         background-color: #000000 !important;
         color: #ffffff !important;
         border: 1px solid #ffffff !important;
     }
-    /* Estilo del dropdown y opciones de la lista */
+    
+    /* Forzar el color del texto de la opción seleccionada en el dropdown */
+    div[data-baseweb="select"] [data-testid="stMarkdownContainer"] p,
+    div[data-baseweb="select"] span,
+    div[data-baseweb="select"] div {
+        color: #ffffff !important;
+    }
+    
+    /* Opciones desplegables del menú */
     div[data-baseweb="popover"] ul {
         background-color: #000000 !important;
         color: #ffffff !important;
@@ -70,19 +82,32 @@ if st.session_state.tema_oscuro:
     div[data-baseweb="popover"] li:hover {
         background-color: #333333 !important;
     }
-    /* Forzar botones normales de carga a fondo negro y texto blanco */
+    
+    /* BOTONES: TODOS NEGROS CON TEXTO BLANCO (INCLUYENDO LOS DE FORMULARIOS) */
+    .stButton>button, 
+    .stFormSubmitButton>button,
+    .stDownloadButton>button,
+    button {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+        border: 1px solid #ffffff !important;
+    }
+    
+    /* Clases personalizadas de botones normales */
     .boton-normal>div>button { 
         background-color: #000000 !important; 
         color: #ffffff !important; 
         border: 1px solid #ffffff !important;
     }
-    /* Botón de cambio de tema con fondo negro en modo oscuro */
+    
+    /* Botón de cambio de tema (Sol/Luna) en la esquina */
     button[key="btn_tema"] {
         background-color: #000000 !important;
         color: #ffffff !important;
         border: 1px solid #ffffff !important;
     }
-    /* Fix para que los tooltips/hovers nativos de Streamlit mantengan contraste negro/blanco */
+    
+    /* Corrección del tooltip (el cuadro flotante de ayuda al pasar el mouse) */
     div[data-testid="stTooltipContent"] {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -98,13 +123,13 @@ else:
         color: #000000 !important;
         border: 1px solid #cccccc !important;
     }
-    /* Botón azul normal en modo claro */
+    /* Botón azul clásico en modo claro */
     .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; }
     """
     icono_tema = "🌙"
     label_tema = "Modo Oscuro"
 
-# Estilo CSS general corregido
+# Estilo CSS general unificado
 st.markdown(f"""
     <style>
     {variables_color}
@@ -151,7 +176,7 @@ st.markdown(f"""
         transform: scale(1.1) !important;
     }}
     
-    .stButton>button, .stDownloadButton>button {{
+    .stButton>button, .stFormSubmitButton>button, .stDownloadButton>button {{
         width: 100%;
         height: 55px;
         font-size: 16px;
@@ -159,8 +184,9 @@ st.markdown(f"""
         transition: all 0.3s ease;
     }}
     
-    .boton-exito>div>button {{ background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }}
-    .boton-error>div>button {{ background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }}
+    /* Sobrescribir estados especiales de éxito/error/borrado */
+    .boton-exito>div>button {{ background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; border: none !important; }}
+    .boton-error>div>button {{ background-color: #d32f2f !important; color: white !important; font-weight: bold !important; border: none !important; }}
     .boton-borrar>div>button {{ background-color: #555555 !important; color: white !important; height: 55px !important; }}
     
     .boton-wsp>div>a {{
@@ -504,7 +530,7 @@ if not st.session_state.tabla_carga.empty:
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.69-4.936c-.202-.101-1.202-.594-1.392-.661-.19-.068-.33-.101-.47.101-.14.202-.54.661-.661.8-.12.138-.24.154-.442.053-1.648-.826-2.617-1.963-3.064-2.731-.12-.207-.013-.319.09-.421.093-.092.202-.24.302-.36.101-.12.135-.2.203-.34.067-.137.034-.257-.017-.359-.051-.101-.47-1.136-.645-1.545-.171-.413-.344-.358-.47-.364-.121-.006-.26-.006-.4-.006-.14 0-.368.053-.56.26-.191.207-.73.714-.73 1.74s.747 2.009.85 2.147c.101.137 1.47 2.246 3.562 3.149.497.215.885.342 1.184.438.5.158.955.135 1.314.08.4-.061 1.202-.493 1.37-.967.169-.473.169-.88.119-.967-.051-.088-.18-.137-.383-.238"/>
                 </svg>
-                COMPARTIR REANTE TEXTO
+                COMPARTIR REPORTE TEXTO
             </a>
         </div>
     """, unsafe_allow_html=True)
