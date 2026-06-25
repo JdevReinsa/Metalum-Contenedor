@@ -18,11 +18,10 @@ st.set_page_config(
 if "tema_oscuro" not in st.session_state:
     st.session_state.tema_oscuro = False  # Inicia por defecto en modo claro
 
-# Función para alternar el tema al presionar el botón
 def cambiar_tema():
     st.session_state.tema_oscuro = not st.session_state.tema_oscuro
 
-# 🔐 DETECTOR DE DISPOSITIVO INVIOLABLE (No se borra al recargar y no se cruza entre equipos)
+# 🔐 DETECTOR DE DISPOSITIVO INVIOLABLE
 def obtener_id_dispositivo_unico():
     try:
         headers = st.context.headers
@@ -43,42 +42,31 @@ st.markdown('<meta name="apple-mobile-web-app-title" content="Carga contenedor">
 st.markdown('<meta name="apple-mobile-web-app-capable" content="yes">', unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3066/3066514.png">', unsafe_allow_html=True)
 
-# 🎨 INYECCIÓN DINÁMICA DE CSS (Cambia según el estado del modo oscuro)
+# 🎨 VARIABLES DE COLOR CORREGIDAS (Sin romper la estructura interna de los inputs)
 if st.session_state.tema_oscuro:
-    # Colores para Modo Oscuro
     variables_color = """
-    :root {
-        --background-color: #0e1117;
-        --secondary-background-color: #1a1c23;
-        --text-color: #ffffff;
-    }
     .stApp {
         background-color: #0e1117 !important;
         color: #ffffff !important;
     }
-    p, h1, h2, h3, h4, h5, h6, span, label {
+    p, h1, h2, h3, h4, h5, h6, span, label, small {
         color: #ffffff !important;
     }
-    input, select, div[data-baseweb="select"] {
+    /* Estilo limpio para inputs en modo oscuro sin romper layouts */
+    .stTextInput input, .stSelectbox div[data-baseweb="select"] {
         background-color: #1a1c23 !important;
-        color: white !important;
+        color: #ffffff !important;
+        border: 1px solid #3f4452 !important;
     }
     """
     icono_tema = "☀️"
     label_tema = "Modo Claro"
 else:
-    # Colores para Modo Claro
-    variables_color = """
-    :root {
-        --background-color: #ffffff;
-        --secondary-background-color: #f0f2f6;
-        --text-color: #31333f;
-    }
-    """
+    variables_color = ""  # Usa el tema claro nativo y limpio de Streamlit
     icono_tema = "🌙"
     label_tema = "Modo Oscuro"
 
-# Estilo CSS inyectado optimizado
+# Estilo CSS general corregido
 st.markdown(f"""
     <style>
     {variables_color}
@@ -99,28 +87,33 @@ st.markdown(f"""
         overflow-x: auto !important;
     }}
     
-    /* 📌 ESTILIZADO DEL BOTÓN FLOTANTE EN LA ESQUINA SUPERIOR DERECHA */
-    div.element-container:has(button[key="btn_tema"]) {{
-        position: fixed;
-        top: 15px;
-        right: 15px;
-        z-index: 999999;
-        width: auto;
+    /* 📌 FIJAR EL BOTÓN EN LA ESQUINA SUPERIOR DERECHA ABSOLUTA */
+    div[data-testid="stVerticalBlock"] > div:has(button[key="btn_tema"]) {{
+        position: fixed !important;
+        top: 20px !important;
+        right: 20px !important;
+        z-index: 999999 !important;
+        width: auto !important;
     }}
     
     button[key="btn_tema"] {{
-        background-color: transparent !important;
-        border: 1px solid #ccc !important;
-        padding: 5px 10px !important;
-        border-radius: 20px !important;
+        background-color: #1e3a8a !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 50% !important;
+        width: 40px !important;
+        height: 40px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
         font-size: 18px !important;
-        cursor: pointer;
-        transition: transform 0.2s ease;
-        box-shadow: 0px 2px 5px rgba(0,0,0,0.2);
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.3) !important;
+        cursor: pointer !important;
+        transition: transform 0.2s ease !important;
     }}
     
     button[key="btn_tema"]:hover {{
-        transform: scale(1.1);
+        transform: scale(1.1) !important;
     }}
     
     .stButton>button, .stDownloadButton>button {{
@@ -162,14 +155,14 @@ st.markdown(f"""
         font-size: 18px !important;
     }}
     
-    input {{
+    /* Input height fixed sin romper paddings internos */
+    .stTextInput input {{
         height: 45px !important;
-        font-size: 16px !important;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# RENDEREADO DEL BOTÓN DE CAMBIO DE TEMA
+# BOTÓN EN LA ESQUINA SUPERIOR DERECHA
 st.button(icono_tema, key="btn_tema", on_click=cambiar_tema, help=f"Cambiar a {label_tema}")
 
 st.title("🏭 METALUM")
@@ -195,7 +188,7 @@ def cargar_datos():
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
 
-# --- LÓGICA DE BORRADO EN CALLBACK DIRECTO ---
+# --- LÓGICA DE BORRADO ---
 def ejecutar_borrado_directo():
     folio_a_borrar = st.session_state.get("folio_a_borrar_input", "").strip()
     if not folio_a_borrar:
@@ -216,7 +209,7 @@ def ejecutar_borrado_directo():
         st.session_state.mensaje_borrado = f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio/Código: {folio_a_borrar})"
         st.session_state["folio_a_borrar_input"] = ""
 
-# --- GENERAR EXCEL PROFESIONAL ---
+# --- GENERAR EXCEL ---
 def generar_excel(df, patente_nom, total_b, total_k, total_p):
     output = io.BytesIO()
     df_excel = df.copy()
