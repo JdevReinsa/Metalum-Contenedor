@@ -14,14 +14,20 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# 🌓 CONTROL DE MODO OSCURO / MODO CLARO
+if "tema_oscuro" not in st.session_state:
+    st.session_state.tema_oscuro = False  # Inicia por defecto en modo claro
+
+# Función para alternar el tema al presionar el botón
+def cambiar_tema():
+    st.session_state.tema_oscuro = not st.session_state.tema_oscuro
+
 # 🔐 DETECTOR DE DISPOSITIVO INVIOLABLE (No se borra al recargar y no se cruza entre equipos)
 def obtener_id_dispositivo_unico():
     try:
-        # Captura las características únicas del navegador y dispositivo (User-Agent, IP proxies, etc.)
         headers = st.context.headers
         user_agent = headers.get("User-Agent", "dispositivo_desconocido")
         host = headers.get("Host", "local")
-        # Creamos una firma digital única para ese aparato
         firma_secreta = f"{user_agent}_{host}"
         id_anonimo = hashlib.md5(firma_secreta.encode()).hexdigest()[:10]
         return id_anonimo
@@ -29,8 +35,6 @@ def obtener_id_dispositivo_unico():
         return "dispositivo_fijo"
 
 ID_DISPOSITIVO = obtener_id_dispositivo_unico()
-
-# El archivo ahora está blindado: es único para cada aparato y NO cambia al pulsar F5
 ARCHIVO_DATOS = f"registro_fardos_{ID_DISPOSITIVO}.csv"
 
 # 📱 CONEXIÓN CON EL MANIFEST PARA EL ACCESO DIRECTO MÓVIL
@@ -39,39 +43,100 @@ st.markdown('<meta name="apple-mobile-web-app-title" content="Carga contenedor">
 st.markdown('<meta name="apple-mobile-web-app-capable" content="yes">', unsafe_allow_html=True)
 st.markdown('<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3066/3066514.png">', unsafe_allow_html=True)
 
+# 🎨 INYECCIÓN DINÁMICA DE CSS (Cambia según el estado del modo oscuro)
+if st.session_state.tema_oscuro:
+    # Colores para Modo Oscuro
+    variables_color = """
+    :root {
+        --background-color: #0e1117;
+        --secondary-background-color: #1a1c23;
+        --text-color: #ffffff;
+    }
+    .stApp {
+        background-color: #0e1117 !important;
+        color: #ffffff !important;
+    }
+    p, h1, h2, h3, h4, h5, h6, span, label {
+        color: #ffffff !important;
+    }
+    input, select, div[data-baseweb="select"] {
+        background-color: #1a1c23 !important;
+        color: white !important;
+    }
+    """
+    icono_tema = "☀️"
+    label_tema = "Modo Claro"
+else:
+    # Colores para Modo Claro
+    variables_color = """
+    :root {
+        --background-color: #ffffff;
+        --secondary-background-color: #f0f2f6;
+        --text-color: #31333f;
+    }
+    """
+    icono_tema = "🌙"
+    label_tema = "Modo Oscuro"
+
 # Estilo CSS inyectado optimizado
-st.markdown("""
+st.markdown(f"""
     <style>
-    [data-testid="stHeader"] {
+    {variables_color}
+    
+    [data-testid="stHeader"] {{
         visibility: hidden;
         height: 0% !important;
-    }
-    [data-testid="viewerBadge"] {
+    }}
+    [data-testid="viewerBadge"] {{
         visibility: hidden;
-    }
-    [data-testid="stSidebarCollapse"] {
+    }}
+    [data-testid="stSidebarCollapse"] {{
         display: none !important;
-    }
+    }}
     
-    [data-testid="stDataFrame"] {
+    [data-testid="stDataFrame"] {{
         width: 100% !important;
         overflow-x: auto !important;
-    }
+    }}
     
-    .stButton>button, .stDownloadButton>button {
+    /* 📌 ESTILIZADO DEL BOTÓN FLOTANTE EN LA ESQUINA SUPERIOR DERECHA */
+    div.element-container:has(button[key="btn_tema"]) {{
+        position: fixed;
+        top: 15px;
+        right: 15px;
+        z-index: 999999;
+        width: auto;
+    }}
+    
+    button[key="btn_tema"] {{
+        background-color: transparent !important;
+        border: 1px solid #ccc !important;
+        padding: 5px 10px !important;
+        border-radius: 20px !important;
+        font-size: 18px !important;
+        cursor: pointer;
+        transition: transform 0.2s ease;
+        box-shadow: 0px 2px 5px rgba(0,0,0,0.2);
+    }}
+    
+    button[key="btn_tema"]:hover {{
+        transform: scale(1.1);
+    }}
+    
+    .stButton>button, .stDownloadButton>button {{
         width: 100%;
         height: 55px;
         font-size: 16px;
         border-radius: 8px !important;
         transition: all 0.3s ease;
-    }
+    }}
     
-    .boton-normal>div>button { background-color: #1e3a8a !important; color: white !important; }
-    .boton-exito>div>button { background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }
-    .boton-error>div>button { background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }
-    .boton-borrar>div>button { background-color: #555555 !important; color: white !important; height: 55px !important; }
+    .boton-normal>div>button {{ background-color: #1e3a8a !important; color: white !important; }}
+    .boton-exito>div>button {{ background-color: #2e7d32 !important; color: white !important; font-weight: bold !important; }}
+    .boton-error>div>button {{ background-color: #d32f2f !important; color: white !important; font-weight: bold !important; }}
+    .boton-borrar>div>button {{ background-color: #555555 !important; color: white !important; height: 55px !important; }}
     
-    .boton-wsp>div>a {
+    .boton-wsp>div>a {{
         display: flex;
         align-items: center;
         justify-content: center;
@@ -84,9 +149,9 @@ st.markdown("""
         text-decoration: none;
         border-radius: 8px;
         font-size: 18px;
-    }
+    }}
     
-    .boton-excel-wsp>div>button {
+    .boton-excel-wsp>div>button {{
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -95,14 +160,17 @@ st.markdown("""
         color: white !important;
         font-weight: bold !important;
         font-size: 18px !important;
-    }
+    }}
     
-    input {
+    input {{
         height: 45px !important;
         font-size: 16px !important;
-    }
+    }}
     </style>
     """, unsafe_allow_html=True)
+
+# RENDEREADO DEL BOTÓN DE CAMBIO DE TEMA
+st.button(icono_tema, key="btn_tema", on_click=cambiar_tema, help=f"Cambiar a {label_tema}")
 
 st.title("🏭 METALUM")
 st.subheader("Registro de Contenedor")
@@ -127,7 +195,7 @@ def cargar_datos():
 def guardar_datos(df):
     df.to_csv(ARCHIVO_DATOS, index=False)
 
-# --- LÓGICA DE BORRADO EN CALLBACK DIRECTO (Soluciona el doble click de raíz) ---
+# --- LÓGICA DE BORRADO EN CALLBACK DIRECTO ---
 def ejecutar_borrado_directo():
     folio_a_borrar = st.session_state.get("folio_a_borrar_input", "").strip()
     if not folio_a_borrar:
@@ -141,13 +209,11 @@ def ejecutar_borrado_directo():
         fila_seleccionada = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] == folio_a_borrar].iloc[0]
         producto_borrado = fila_seleccionada["Producto"]
         
-        # Filtrado inmediato
         st.session_state.tabla_carga = st.session_state.tabla_carga[st.session_state.tabla_carga["Folio"] != folio_a_borrar]
         st.session_state.tabla_carga["Ítem"] = range(1, len(st.session_state.tabla_carga) + 1)
         
         guardar_datos(st.session_state.tabla_carga)
         st.session_state.mensaje_borrado = f"✅ ¡Registro eliminado con éxito! Producto: {producto_borrado} (Folio/Código: {folio_a_borrar})"
-        # Limpieza inmediata de la caja de texto para evitar bucles raros
         st.session_state["folio_a_borrar_input"] = ""
 
 # --- GENERAR EXCEL PROFESIONAL ---
@@ -202,7 +268,7 @@ def generar_excel(df, patente_nom, total_b, total_k, total_p):
         
     return output.getvalue()
 
-# Inicializar Estados basados en el almacenamiento persistente
+# Inicializar Estados
 if "tabla_carga" not in st.session_state:
     st.session_state.tabla_carga = cargar_datos()
 if "estado_ultimo_fardo" not in st.session_state:
@@ -218,7 +284,6 @@ if "form_reset_counter" not in st.session_state:
 if "mensaje_borrado" not in st.session_state:
     st.session_state.mensaje_borrado = ""
 
-# Asegurar que si se refresca la página, los datos se lean del archivo correcto del dispositivo
 st.session_state.tabla_carga = cargar_datos()
 
 # 2. SELECCIÓN DE PRODUCTO
@@ -333,7 +398,6 @@ if st.session_state.estado_ultimo_fardo != "normal":
 
 st.divider()
 
-# Variable para rastrear la patente
 patente_texto = "NO REGISTRADA"
 
 # 5. MONITOREO EN TIEMPO REAL
@@ -434,7 +498,7 @@ if not st.session_state.tabla_carga.empty:
 else:
     st.info("El contenedor está vacío. Empieza a registrar los fardos arriba.")
 
-# --- 7. SECCIÓN CORREGIR ERRORES (FUERA DE CONDICIONALES PARA TRABAJAR EN 1 SOLO CLICK) ---
+# --- 7. SECCIÓN CORREGIR ERRORES ---
 st.write("### 🛠️ Corregir Errores")
 folio_a_borrar_raw = st.text_input(
     "Digita el N° de Folio que deseas eliminar:", 
@@ -449,7 +513,6 @@ else:
     texto_boton = f"🗑️ ELIMINAR FOLIO N° {folio_a_borrar_limpio}"
 
 st.markdown('<div class="boton-borrar">', unsafe_allow_html=True)
-# Se ejecuta la lógica exactamente en el milisegundo del on_click, impidiendo el doble ciclo
 st.button(texto_boton, on_click=ejecutar_borrado_directo)
 st.markdown('</div>', unsafe_allow_html=True)
 
